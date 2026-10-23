@@ -67,6 +67,8 @@
     <string name="back">Back</string>
     <string name="home">Home</string>
     <string name="menu">Menu</string>
+    <string name="nav_recents">Recents</string>
+    <string name="toggle_remote_control">Show or hide the floating remote</string>
     <string name="scrcpy_ready">Ready</string>
     <string name="scrcpy_installing">Installing server…</string>
     <string name="scrcpy_starting">Starting server…</string>
@@ -159,6 +161,7 @@
     <string name="log_tailcat_paired_connection_failed">Pairing succeeded, but the TLS connection failed. Check the current connection port and use Connect paired device.</string>
     <string name="log_tailcat_connection_failed">Could not connect to the paired device. Check the current TLS connection port and retry.</string>
     <string name="mirror_options">Mirror options</string>
+    <string name="mirror_options_pending">Changes apply the next time mirroring starts; stop and start mirroring to use them now.</string>
     <string name="mirror_resolution">Resolution (long edge)</string>
     <string name="resolution_original">Original</string>
     <string name="virtual_display">Virtual display</string>

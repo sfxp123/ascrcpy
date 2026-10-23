@@ -166,6 +166,7 @@ internal fun MainScreen(
 ) {
   var fullscreen by remember(state.connected) { mutableStateOf(state.connected) }
   var managingDevice by rememberSaveable { mutableStateOf(false) }
+  var remoteVisible by rememberSaveable { mutableStateOf(true) }
   val remoteState = rememberSaveable(saver = FloatingRemoteStateSaver) { FloatingRemoteState() }
   BackHandler(managingDevice) { managingDevice = false }
   ImmersiveMode(state.connected && fullscreen && !managingDevice)
@@ -181,7 +182,11 @@ internal fun MainScreen(
   if (state.connected && fullscreen) {
     Box(modifier.fillMaxSize().background(Color.Black)) {
       AspectRatioRemoteSurface(videoSize, onSurfaceCreated, onSurfaceDestroyed, onTouch, Modifier.fillMaxSize())
-      FloatingRemote(onKey, { fullscreen = false }, remoteState, Modifier.fillMaxSize().safeDrawingPadding())
+      // The remote keeps clear of the navigation bar so the bar stays reachable while it is shown.
+      if (remoteVisible) FloatingRemote(onKey, { fullscreen = false }, remoteState,
+        Modifier.fillMaxSize().safeDrawingPadding().padding(bottom = NAV_BAR_CLEARANCE))
+      MirrorNavBar(onKey, remoteVisible, { remoteVisible = !remoteVisible },
+        Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 12.dp))
     }
   } else {
     NormalScreen(state, videoSize, onHostChange, onPortChange, onConnect, onDisconnect,
@@ -398,9 +403,9 @@ private fun NormalScreen(
           }
         }
       }
+      MirrorOptionsCard(state, onVideoMaxSizeChange, onVirtualDisplayEnabledChange,
+        onVirtualDisplaySpecChange, onTurnScreenOffChange)
       if (state.connected) {
-        MirrorOptionsCard(state, onVideoMaxSizeChange, onVirtualDisplayEnabledChange,
-          onVirtualDisplaySpecChange, onTurnScreenOffChange)
         Card(Modifier.fillMaxWidth()) {
           Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
@@ -427,7 +432,13 @@ private fun NormalScreen(
   }
 }
 
-/** Mirror session options applied the next time the scrcpy session starts. */
+/**
+ * Mirror session options applied the next time a scrcpy session starts.
+ *
+ * The card is always on screen, so options can be prepared before connecting or starting to mirror.
+ * A running session keeps its negotiated size and display, so editing while streaming only changes
+ * the next session; the hint says so instead of hiding the controls.
+ */
 @Composable
 private fun MirrorOptionsCard(
   state: MainUiState,
@@ -436,11 +447,14 @@ private fun MirrorOptionsCard(
   onVirtualDisplaySpecChange: (String) -> Unit,
   onTurnScreenOffChange: (Boolean) -> Unit,
 ) {
-  val enabled = !state.busy &&
-    (state.scrcpyState is ScrcpyState.Idle || state.scrcpyState is ScrcpyState.Failed)
+  val enabled = !state.busy
   Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
       Text(stringResource(R.string.mirror_options), style = MaterialTheme.typography.titleLarge)
+      if (state.scrcpyState !is ScrcpyState.Idle && state.scrcpyState !is ScrcpyState.Failed) {
+        Text(stringResource(R.string.mirror_options_pending),
+          color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+      }
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.mirror_resolution), style = MaterialTheme.typography.titleMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -478,7 +492,7 @@ private fun MirrorOptionsCard(
 }
 
 /** Long-edge limits offered for the mirrored video; 0 keeps the device's original size. */
-private val RESOLUTION_PRESETS = listOf(0, 2560, 1920, 1280, 960)
+private val RESOLUTION_PRESETS = listOf(0, 2560, 1920, 1280, 960, 720, 540)
 
 @Composable
 private fun ConnectionHistoryList(
@@ -630,6 +644,43 @@ private fun Context.findActivity(): Activity? = when (this) {
   is ContextWrapper -> baseContext.findActivity()
   else -> null
 }
+
+/**
+ * Persistent navigation bar shown while mirroring, modelled on an emulator's always-visible
+ * three-button strip. The fourth key shows or hides the floating remote, so the remote can be
+ * dismissed entirely without leaving the mirror.
+ */
+@Composable
+private fun MirrorNavBar(
+  onKey: (Int) -> Unit,
+  remoteVisible: Boolean,
+  onToggleRemote: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  Row(modifier.clip(RoundedCornerShape(28.dp)).background(WeChatOverlayStrong)
+      .padding(horizontal = 12.dp, vertical = 8.dp),
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+    verticalAlignment = Alignment.CenterVertically) {
+    RemoteButton(RemoteIcon.Back, stringResource(R.string.back), NAV_KEY_SIZE, NAV_ICON_SIZE) {
+      onKey(KeyEvent.KEYCODE_BACK)
+    }
+    RemoteButton(RemoteIcon.Home, stringResource(R.string.home), NAV_KEY_SIZE, NAV_ICON_SIZE) {
+      onKey(KeyEvent.KEYCODE_HOME)
+    }
+    RemoteButton(RemoteIcon.Recents, stringResource(R.string.nav_recents), NAV_KEY_SIZE, NAV_ICON_SIZE) {
+      onKey(KeyEvent.KEYCODE_APP_SWITCH)
+    }
+    Box(Modifier.width(1.dp).height(NAV_KEY_SIZE * .6f).background(Color.White.copy(.22f)))
+    RemoteButton(RemoteIcon.RemoteControl, stringResource(R.string.toggle_remote_control),
+      NAV_KEY_SIZE, NAV_ICON_SIZE, active = remoteVisible, onClick = onToggleRemote)
+  }
+}
+
+private val NAV_KEY_SIZE = 44.dp
+private val NAV_ICON_SIZE = 22.dp
+
+/** Room reserved below the floating remote for the navigation bar and its padding. */
+private val NAV_BAR_CLEARANCE = 76.dp
 
 @Composable
 private fun FloatingRemote(
@@ -928,7 +979,7 @@ private fun MiniRemote(onKey: (Int) -> Unit, onToggleFullscreen: () -> Unit, met
   }
 }
 
-private enum class RemoteIcon { Up, Down, Left, Right, Confirm, Back, Home, Menu, Power, VolumeDown, VolumeUp, RemoteControl, Fullscreen }
+private enum class RemoteIcon { Up, Down, Left, Right, Confirm, Back, Home, Recents, Menu, Power, VolumeDown, VolumeUp, RemoteControl, Fullscreen }
 
 /** A remote key wired to a single Android key code, sized from [metrics]. */
 @Composable
@@ -947,12 +998,14 @@ private fun RemoteKey(
 
 @Composable
 private fun RemoteButton(icon: RemoteIcon, description: String, buttonSize: Dp = RemoteLayout.KeySize,
-  iconSize: Dp = RemoteLayout.KeyIconSize, tint: Color = RemoteLayout.IconTint, onClick: () -> Unit) {
+  iconSize: Dp = RemoteLayout.KeyIconSize, tint: Color = RemoteLayout.IconTint, active: Boolean = false,
+  onClick: () -> Unit) {
   // A plain clickable Box rather than IconButton: IconButton enforces a 48dp minimum touch target on
   // top of whatever size it is handed, which shrinks its reported layout box while still drawing the
   // larger circle. The panel is sized from these metrics, so a key must be exactly what it claims.
   Box(
-    modifier = Modifier.size(buttonSize).clip(CircleShape).background(Color.White.copy(.11f))
+    modifier = Modifier.size(buttonSize).clip(CircleShape)
+      .background(if (active) Color.White.copy(.3f) else Color.White.copy(.11f))
       .clickable(role = Role.Button, onClick = onClick)
       .semantics { contentDescription = description },
     contentAlignment = Alignment.Center,
@@ -1001,6 +1054,14 @@ private fun RemoteGlyph(icon: RemoteIcon, tint: Color, modifier: Modifier = Modi
           drawPath(speaker, white)
           drawLine(white, Offset(size.width * .64f, size.height * .5f), Offset(size.width * .9f, size.height * .5f), stroke, StrokeCap.Round)
           if (icon == RemoteIcon.VolumeUp) drawLine(white, Offset(size.width * .77f, size.height * .37f), Offset(size.width * .77f, size.height * .63f), stroke, StrokeCap.Round)
+        }
+        RemoteIcon.Recents -> {
+          // The recents key is a rounded square, matching the platform's navigation glyph.
+          val inset = size.minDimension * .2f
+          drawRoundRect(white, topLeft = Offset(inset, inset),
+            size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width * .1f),
+            style = Stroke(stroke, cap = StrokeCap.Round))
         }
         RemoteIcon.Fullscreen -> {
           val edge = size.minDimension * .18f

@@ -66,6 +66,7 @@ Android TV that has no keyboard and no app store.
 - Bundled, matching scrcpy-server 5.0.1, started and stopped as part of the session.
 - Mirror options: resolution (long-edge) presets, mirroring into a new virtual display with an
   optional size/DPI, and turning the target screen off while mirroring (restored on stop).
+- Always-visible back / home / recents bar while mirroring, with a toggle for the floating remote.
 - Low-latency H.264 decoding into a `SurfaceView` via `MediaCodec`.
 - Single- and multi-pointer touch forwarding with pressure and correct coordinate mapping.
 - Automatic immersive preview after connecting, cutout- and notch-aware.
