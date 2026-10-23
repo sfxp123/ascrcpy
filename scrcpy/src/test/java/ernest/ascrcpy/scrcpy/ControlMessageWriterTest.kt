@@ -18,10 +18,11 @@ class ControlMessageWriterTest {
     @Test fun serializesStartAppAsTypeLengthAndUtf8Name(): Unit = runBlocking {
         val out = ByteArrayOutputStream()
         val writer = ControlMessageWriter(capturing(out))
-        writer.startApp("com.miui.home")
+        val name = "com.miui.home"
+        writer.startApp(name)
         val written = out.toByteArray()
-        assertArrayEquals(byteArrayOf(16, 12), written.copyOfRange(0, 2))
-        assertArrayEquals("com.miui.home".toByteArray(Charsets.UTF_8), written.copyOfRange(2, written.size))
+        assertArrayEquals(byteArrayOf(16, name.length.toByte()), written.copyOfRange(0, 2))
+        assertArrayEquals(name.toByteArray(Charsets.UTF_8), written.copyOfRange(2, written.size))
     }
 
     private fun capturing(out: ByteArrayOutputStream) = object : AdbChannel {
