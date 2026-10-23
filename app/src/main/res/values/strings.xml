@@ -161,7 +161,7 @@
     <string name="log_tailcat_paired_connection_failed">Pairing succeeded, but the TLS connection failed. Check the current connection port and use Connect paired device.</string>
     <string name="log_tailcat_connection_failed">Could not connect to the paired device. Check the current TLS connection port and retry.</string>
     <string name="mirror_options">Mirror options</string>
-    <string name="mirror_options_pending">Changes apply the next time mirroring starts; stop and start mirroring to use them now.</string>
+    <string name="mirror_options_pending">Resolution and virtual display changes apply the next time mirroring starts; stop and start mirroring to use them now.</string>
     <string name="mirror_resolution">Resolution (long edge)</string>
     <string name="resolution_original">Original</string>
     <string name="virtual_display">Virtual display</string>

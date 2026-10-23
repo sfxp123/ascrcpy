@@ -160,6 +160,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   fun setTurnScreenOff(value: Boolean) {
     preferences.edit().putBoolean(TURN_SCREEN_OFF_KEY, value).apply()
     form.update { copy(turnScreenOff = value) }
+    // Display power is a live control message, so the switch also takes effect mid-stream.
+    if (form.value.scrcpyState is ScrcpyState.Streaming) {
+      viewModelScope.launch { scrcpy.setDisplayPower(!value) }
+    }
   }
   fun usbDevices(): List<UsbDevice> = UsbAdbTransport.discover(usbManager)
   fun hasUsbPermission(device: UsbDevice): Boolean = usbManager.hasPermission(device)

@@ -112,6 +112,16 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
         controller?.injectKey(action, keyCode)
     }
 
+    /**
+     * Applies display power to a running session, so the screen-off option can also be toggled
+     * mid-stream. [stop] then restores the display on teardown when it was left off.
+     */
+    suspend fun setDisplayPower(on: Boolean) {
+        val active = controller ?: return
+        active.setDisplayPower(on)
+        screenOffApplied = !on
+    }
+
     fun stop() {
         sessionGeneration++
         val activeScope = scope

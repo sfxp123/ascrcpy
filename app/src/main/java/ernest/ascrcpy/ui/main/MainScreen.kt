@@ -436,8 +436,8 @@ private fun NormalScreen(
  * Mirror session options applied the next time a scrcpy session starts.
  *
  * The card is always on screen, so options can be prepared before connecting or starting to mirror.
- * A running session keeps its negotiated size and display, so editing while streaming only changes
- * the next session; the hint says so instead of hiding the controls.
+ * A running session keeps its negotiated size and display, so resolution and virtual display edits
+ * apply to the next session; screen-off is a live control message and takes effect immediately.
  */
 @Composable
 private fun MirrorOptionsCard(
