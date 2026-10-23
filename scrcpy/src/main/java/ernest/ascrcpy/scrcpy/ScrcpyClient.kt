@@ -122,6 +122,11 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
         screenOffApplied = !on
     }
 
+    /** Starts [name] on the mirrored display, so a virtual display produces content. */
+    suspend fun startApp(name: String) {
+        controller?.startApp(name)
+    }
+
     fun stop() {
         sessionGeneration++
         val activeScope = scope

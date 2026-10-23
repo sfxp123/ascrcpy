@@ -6,21 +6,31 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class VirtualDisplaySpecTest {
-    @Test fun blankSpecMeansDeviceDefaultSize() {
-        assertEquals(VirtualDisplay(), parseVirtualDisplaySpec(""))
-        assertEquals(VirtualDisplay(), parseVirtualDisplaySpec("   "))
+    @Test fun blankFieldsMeanDeviceDefaultSize() {
+        assertEquals(VirtualDisplay(), parseVirtualDisplay("", "", ""))
     }
 
-    @Test fun parsesSizeAndOptionalDpi() {
-        assertEquals(VirtualDisplay(1920, 1080), parseVirtualDisplaySpec("1920x1080"))
-        assertEquals(VirtualDisplay(1920, 1080, 240), parseVirtualDisplaySpec("1920x1080/240"))
-        assertEquals(VirtualDisplay(1280, 720), parseVirtualDisplaySpec(" 1280x720 "))
+    @Test fun parsesNumericFields() {
+        assertEquals(VirtualDisplay(1920, 1080), parseVirtualDisplay("1920", "1080", ""))
+        assertEquals(VirtualDisplay(1920, 1080, 240), parseVirtualDisplay("1920", "1080", "240"))
     }
 
-    @Test fun rejectsMalformedSpecs() {
-        listOf("1920", "x1080", "1920*1080", "1920x1080/", "1920x1080/dpi", "1920x1080/0",
-            "0x1080", "abc", "1920x1080/240/1").forEach { spec ->
-            assertNull("spec '$spec' must be rejected", parseVirtualDisplaySpec(spec))
-        }
+    @Test fun widthAndHeightAreRequiredTogether() {
+        assertNull(parseVirtualDisplay("1920", "", ""))
+        assertNull(parseVirtualDisplay("", "1080", ""))
+        assertNull(parseVirtualDisplay("1920", "", "240"))
+    }
+
+    @Test fun rejectsZeroAndNonPositiveDpi() {
+        assertNull(parseVirtualDisplay("0", "1080", ""))
+        assertNull(parseVirtualDisplay("1920", "0", ""))
+        assertNull(parseVirtualDisplay("1920", "1080", "0"))
+    }
+
+    @Test fun maxSizeUsesTheShortestEdgeAndTheAspectRatio() {
+        assertEquals(0, maxSizeForShortEdge(0, 20f / 9f))
+        assertEquals(1280, maxSizeForShortEdge(720, 16f / 9f))
+        assertEquals(1600, maxSizeForShortEdge(720, 20f / 9f))
+        assertEquals(540, maxSizeForShortEdge(540, 1f))
     }
 }

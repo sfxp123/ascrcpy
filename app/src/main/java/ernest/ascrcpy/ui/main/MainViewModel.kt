@@ -29,6 +29,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.Channel
+import kotlin.math.roundToInt
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
@@ -70,9 +71,11 @@ data class MainUiState(
   val console: String = "",
   val busy: Boolean = false,
   val scrcpyState: ScrcpyState = ScrcpyState.Idle,
-  val videoMaxSize: Int = 1920,
+  val videoMaxSize: Int = 720,
   val virtualDisplayEnabled: Boolean = false,
-  val virtualDisplaySpec: String = "",
+  val virtualDisplayWidth: String = "",
+  val virtualDisplayHeight: String = "",
+  val virtualDisplayDpi: String = "",
   val turnScreenOff: Boolean = false,
 ) {
   val connected: Boolean get() = connectionState is AdbConnectionState.Connected
@@ -99,9 +102,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     hostHistory = savedHosts,
     connectionHistory = connectionHistory,
     savedWirelessDevices = savedWirelessDevices,
-    videoMaxSize = preferences.getInt(VIDEO_MAX_SIZE_KEY, 1920),
+    videoMaxSize = preferences.getInt(VIDEO_MAX_SIZE_KEY, 720),
     virtualDisplayEnabled = preferences.getBoolean(VIRTUAL_DISPLAY_ENABLED_KEY, false),
-    virtualDisplaySpec = preferences.getString(VIRTUAL_DISPLAY_SPEC_KEY, "") ?: "",
+    virtualDisplayWidth = preferences.getString(VIRTUAL_DISPLAY_WIDTH_KEY, "") ?: "",
+    virtualDisplayHeight = preferences.getString(VIRTUAL_DISPLAY_HEIGHT_KEY, "") ?: "",
+    virtualDisplayDpi = preferences.getString(VIRTUAL_DISPLAY_DPI_KEY, "") ?: "",
     turnScreenOff = preferences.getBoolean(TURN_SCREEN_OFF_KEY, false),
   ))
   private var surface: Surface? = null
@@ -152,9 +157,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     form.update { copy(virtualDisplayEnabled = value) }
   }
 
-  fun setVirtualDisplaySpec(value: String) {
-    preferences.edit().putString(VIRTUAL_DISPLAY_SPEC_KEY, value).apply()
-    form.update { copy(virtualDisplaySpec = value.trim()) }
+  fun setVirtualDisplayWidth(value: String) {
+    val digits = value.filter(Char::isDigit).take(4)
+    preferences.edit().putString(VIRTUAL_DISPLAY_WIDTH_KEY, digits).apply()
+    form.update { copy(virtualDisplayWidth = digits) }
+  }
+
+  fun setVirtualDisplayHeight(value: String) {
+    val digits = value.filter(Char::isDigit).take(4)
+    preferences.edit().putString(VIRTUAL_DISPLAY_HEIGHT_KEY, digits).apply()
+    form.update { copy(virtualDisplayHeight = digits) }
+  }
+
+  fun setVirtualDisplayDpi(value: String) {
+    val digits = value.filter(Char::isDigit).take(4)
+    preferences.edit().putString(VIRTUAL_DISPLAY_DPI_KEY, digits).apply()
+    form.update { copy(virtualDisplayDpi = digits) }
   }
 
   fun setTurnScreenOff(value: Boolean) {
@@ -671,25 +689,55 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ) return
     mirrorJob = viewModelScope.launch {
       val snapshot = form.value
-      val config = try {
-        ScrcpyConfig(
-          maxSize = snapshot.videoMaxSize,
-          virtualDisplay = if (snapshot.virtualDisplayEnabled) parseVirtualDisplaySpec(snapshot.virtualDisplaySpec)
-            ?: throw IllegalArgumentException(string(R.string.log_invalid_virtual_display_size)) else null,
-          turnScreenOff = snapshot.turnScreenOff,
-        )
-      } catch (error: IllegalArgumentException) {
-        form.update { copy(console = error.message ?: string(R.string.log_invalid_virtual_display_size)) }
-        return@launch
-      }
+      val virtualDisplay = if (snapshot.virtualDisplayEnabled) {
+        parseVirtualDisplay(snapshot.virtualDisplayWidth, snapshot.virtualDisplayHeight,
+          snapshot.virtualDisplayDpi) ?: run {
+          form.update { copy(console = string(R.string.log_invalid_virtual_display_size)) }
+          return@launch
+        }
+      } else null
+      val aspect = virtualDisplay?.let { display ->
+        val short = minOf(display.width, display.height)
+        val long = maxOf(display.width, display.height)
+        if (short > 0) long.toFloat() / short else null
+      } ?: deviceLongestShortestRatio()
+      val config = ScrcpyConfig(
+        maxSize = maxSizeForShortEdge(snapshot.videoMaxSize, aspect ?: DEFAULT_PHONE_ASPECT),
+        virtualDisplay = virtualDisplay,
+        turnScreenOff = snapshot.turnScreenOff,
+      )
       form.update { copy(busy = true, console = string(R.string.log_starting_scrcpy)) }
+      // Resolve the launcher before the session starts: shell commands must not run mid-mirror.
+      val launcher = if (virtualDisplay != null) launcherPackage() else null
       runCatching {
         getApplication<Application>().assets.open("scrcpy-server-v5.0.1").use { server ->
           scrcpy.start(server, output, config)
         }
+        // A virtual display stays black until something is started on it.
+        if (launcher != null) scrcpy.startApp(launcher)
       }.onFailure { error -> form.update { copy(console = error.stackTraceToString()) } }
       form.update { copy(busy = false) }
     }
+  }
+
+  /** Longest/shortest ratio of the device display, used to turn a short-edge target into max_size. */
+  private suspend fun deviceLongestShortestRatio(): Float? {
+    val output = runCatching { client.shell("wm size").text() }.getOrNull() ?: return null
+    val match = Regex("""(\d+)\s*x\s*(\d+)""").find(output) ?: return null
+    val width = match.groupValues[1].toIntOrNull() ?: return null
+    val height = match.groupValues[2].toIntOrNull() ?: return null
+    if (width <= 0 || height <= 0) return null
+    return maxOf(width, height).toFloat() / minOf(width, height)
+  }
+
+  /** Package of the device's home app, which gives a fresh virtual display something to render. */
+  private suspend fun launcherPackage(): String? {
+    val output = runCatching {
+      client.shell("cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME")
+        .text()
+    }.getOrNull() ?: return null
+    val resolved = output.lineSequence().map { it.trim() }.lastOrNull { it.contains('/') } ?: return null
+    return resolved.substringBefore('/').takeIf { it.isNotBlank() }
   }
 
   fun stopMirroring() {
@@ -820,7 +868,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     const val SURFACE_SETTLE_DELAY_MILLIS = 300L
     const val VIDEO_MAX_SIZE_KEY = "video_max_size_v1"
     const val VIRTUAL_DISPLAY_ENABLED_KEY = "virtual_display_enabled_v1"
-    const val VIRTUAL_DISPLAY_SPEC_KEY = "virtual_display_spec_v1"
+    const val VIRTUAL_DISPLAY_WIDTH_KEY = "virtual_display_width_v2"
+    const val VIRTUAL_DISPLAY_HEIGHT_KEY = "virtual_display_height_v2"
+    const val VIRTUAL_DISPLAY_DPI_KEY = "virtual_display_dpi_v2"
     const val TURN_SCREEN_OFF_KEY = "turn_screen_off_v1"
   }
 }
@@ -831,18 +881,30 @@ private fun logTailcatFailure(stage: String, error: Exception) {
 }
 
 /**
- * Parses the `new_display` spec `[width x height][/dpi]`. A blank spec is valid and means
- * the device default size; anything malformed returns null so the caller can reject it.
+ * Parses the numeric virtual display fields. All fields blank means the device's main display size
+ * and density; a width requires a height, and an entered dpi must be positive.
  */
-internal fun parseVirtualDisplaySpec(spec: String): VirtualDisplay? {
-  if (spec.isBlank()) return VirtualDisplay()
-  val match = Regex("""^(\d+)x(\d+)(?:/(\d+))?$""").matchEntire(spec.trim()) ?: return null
-  val width = match.groupValues[1].toIntOrNull() ?: return null
-  val height = match.groupValues[2].toIntOrNull() ?: return null
-  // An explicit dpi must be positive, matching the server's parseNewDisplay; no dpi means default.
-  val dpi = match.groupValues[3].let { if (it.isEmpty()) 0 else it.toIntOrNull()?.takeIf { d -> d > 0 } ?: return null }
-  return runCatching { VirtualDisplay(width, height, dpi) }.getOrNull()
+internal fun parseVirtualDisplay(width: String, height: String, dpi: String): VirtualDisplay? {
+  val parsedWidth = width.toIntOrNull()
+  val parsedHeight = height.toIntOrNull()
+  val parsedDpi = dpi.toIntOrNull()
+  return when {
+    width.isBlank() && height.isBlank() && dpi.isBlank() -> VirtualDisplay()
+    parsedWidth != null && parsedHeight != null && parsedWidth > 0 && parsedHeight > 0 &&
+      (dpi.isBlank() || (parsedDpi != null && parsedDpi > 0)) -> VirtualDisplay(parsedWidth, parsedHeight, parsedDpi ?: 0)
+    else -> null
+  }
 }
+
+/**
+ * scrcpy's `max_size` caps the longest edge, so a short-edge target is converted with the display
+ * aspect ratio. An unknown ratio falls back to 16:9, the most common phone aspect.
+ */
+internal fun maxSizeForShortEdge(shortEdge: Int, aspect: Float = DEFAULT_PHONE_ASPECT): Int =
+  if (shortEdge <= 0) 0 else (shortEdge * aspect).roundToInt()
+
+internal const val DEFAULT_PHONE_ASPECT = 16f / 9f
+
 
 @StringRes
 internal fun tailcatConnectionFailureMessage(

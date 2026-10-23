@@ -162,12 +162,14 @@
     <string name="log_tailcat_connection_failed">无法连接已配对设备，请检查当前 TLS 连接端口后重试。</string>
     <string name="mirror_options">投屏选项</string>
     <string name="mirror_options_pending">分辨率与虚拟屏的修改将在下次开始投屏时生效；如需立刻生效，请停止后重新开始投屏。</string>
-    <string name="mirror_resolution">分辨率（长边）</string>
+    <string name="mirror_resolution">分辨率（短边）</string>
     <string name="resolution_original">原始</string>
     <string name="virtual_display">虚拟屏</string>
-    <string name="virtual_display_description">镜像新建的虚拟显示屏，而非设备主屏幕。</string>
-    <string name="virtual_display_size">尺寸（如 1920x1080/240，留空为默认）</string>
+    <string name="virtual_display_description">镜像新建的虚拟显示屏，而非设备主屏幕；会自动启动设备桌面。</string>
+    <string name="virtual_display_width">宽</string>
+    <string name="virtual_display_height">高</string>
+    <string name="virtual_display_dpi">DPI</string>
     <string name="turn_screen_off">息屏运行</string>
     <string name="turn_screen_off_description">投屏期间关闭目标设备屏幕，停止投屏时恢复。</string>
-    <string name="log_invalid_virtual_display_size">虚拟屏尺寸无效。请使用 宽x高 并可带 /dpi，例如 1920x1080/240。</string>
+    <string name="log_invalid_virtual_display_size">虚拟屏尺寸无效。请同时填写宽和高，或三项都留空以使用设备尺寸。</string>
 </resources>

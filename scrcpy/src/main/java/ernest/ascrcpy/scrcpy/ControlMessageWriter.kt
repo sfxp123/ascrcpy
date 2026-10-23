@@ -45,9 +45,20 @@ class ControlMessageWriter(private val channel: AdbChannel) {
         channel.write(byteArrayOf(TYPE_SET_DISPLAY_POWER, if (on) 1 else 0))
     }
 
+    /**
+     * scrcpy `TYPE_START_APP`: starts an app on the mirrored display. A virtual display renders
+     * nothing until something is started on it, so this is what makes it show content.
+     */
+    suspend fun startApp(name: String) {
+        val encoded = name.toByteArray(Charsets.UTF_8)
+        require(encoded.size <= 0xFF) { "app name is too long: $name" }
+        channel.write(byteArrayOf(TYPE_START_APP, encoded.size.toByte()) + encoded)
+    }
+
     private companion object {
         const val TYPE_INJECT_KEYCODE: Byte = 0
         const val TYPE_INJECT_TOUCH: Byte = 2
         const val TYPE_SET_DISPLAY_POWER: Byte = 10
+        const val TYPE_START_APP: Byte = 16
     }
 }

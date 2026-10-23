@@ -51,6 +51,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -125,7 +127,8 @@ fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     viewModel::reconnectSavedWirelessDevice, viewModel::selectSavedWirelessDevice, viewModel.deviceClient,
     viewModel::selectConnectionHistory, viewModel::deleteConnectionHistory,
     viewModel::setVideoMaxSize, viewModel::setVirtualDisplayEnabled,
-    viewModel::setVirtualDisplaySpec, viewModel::setTurnScreenOff)
+    viewModel::setVirtualDisplayWidth, viewModel::setVirtualDisplayHeight,
+    viewModel::setVirtualDisplayDpi, viewModel::setTurnScreenOff)
 }
 
 @Composable
@@ -161,7 +164,9 @@ internal fun MainScreen(
   onDeleteConnectionHistory: (String) -> Unit = {},
   onVideoMaxSizeChange: (Int) -> Unit = {},
   onVirtualDisplayEnabledChange: (Boolean) -> Unit = {},
-  onVirtualDisplaySpecChange: (String) -> Unit = {},
+  onVirtualDisplayWidthChange: (String) -> Unit = {},
+  onVirtualDisplayHeightChange: (String) -> Unit = {},
+  onVirtualDisplayDpiChange: (String) -> Unit = {},
   onTurnScreenOffChange: (Boolean) -> Unit = {},
 ) {
   var fullscreen by remember(state.connected) { mutableStateOf(state.connected) }
@@ -185,8 +190,11 @@ internal fun MainScreen(
       // The remote keeps clear of the navigation bar so the bar stays reachable while it is shown.
       if (remoteVisible) FloatingRemote(onKey, { fullscreen = false }, remoteState,
         Modifier.fillMaxSize().safeDrawingPadding().padding(bottom = NAV_BAR_CLEARANCE))
-      MirrorNavBar(onKey, remoteVisible, { remoteVisible = !remoteVisible },
-        Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 12.dp))
+      MirrorNavBar(onKey, remoteVisible, {
+        // Showing the remote opens the full panel directly instead of the collapsed icon.
+        if (!remoteVisible) remoteState.collapsed = false
+        remoteVisible = !remoteVisible
+      }, Modifier.align(Alignment.BottomCenter).safeDrawingPadding().padding(bottom = 4.dp))
     }
   } else {
     NormalScreen(state, videoSize, onHostChange, onPortChange, onConnect, onDisconnect,
@@ -194,7 +202,8 @@ internal fun MainScreen(
       onMethodChange, onPairingHostChange, onPairingPortChange, onPairingCodeChange, onPair, onStartQr, onConnectUsb,
       onTailcatAddressChange, onPrepareWirelessPairing, onReconnectSavedWireless, onSelectSavedWireless,
       onSelectConnectionHistory, onDeleteConnectionHistory,
-      onVideoMaxSizeChange, onVirtualDisplayEnabledChange, onVirtualDisplaySpecChange, onTurnScreenOffChange,
+      onVideoMaxSizeChange, onVirtualDisplayEnabledChange, onVirtualDisplayWidthChange,
+      onVirtualDisplayHeightChange, onVirtualDisplayDpiChange, onTurnScreenOffChange,
       onOpenDevice = { fullscreen = false; managingDevice = true },
       previewControls = { FloatingRemote(onKey, { fullscreen = true }, remoteState, Modifier.fillMaxSize()) })
   }
@@ -245,7 +254,9 @@ private fun NormalScreen(
   onDeleteConnectionHistory: (String) -> Unit,
   onVideoMaxSizeChange: (Int) -> Unit,
   onVirtualDisplayEnabledChange: (Boolean) -> Unit,
-  onVirtualDisplaySpecChange: (String) -> Unit,
+  onVirtualDisplayWidthChange: (String) -> Unit,
+  onVirtualDisplayHeightChange: (String) -> Unit,
+  onVirtualDisplayDpiChange: (String) -> Unit,
   onTurnScreenOffChange: (Boolean) -> Unit,
   onOpenDevice: () -> Unit,
   previewControls: @Composable () -> Unit,
@@ -404,7 +415,8 @@ private fun NormalScreen(
         }
       }
       MirrorOptionsCard(state, onVideoMaxSizeChange, onVirtualDisplayEnabledChange,
-        onVirtualDisplaySpecChange, onTurnScreenOffChange)
+        onVirtualDisplayWidthChange, onVirtualDisplayHeightChange, onVirtualDisplayDpiChange,
+        onTurnScreenOffChange)
       if (state.connected) {
         Card(Modifier.fillMaxWidth()) {
           Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -444,7 +456,9 @@ private fun MirrorOptionsCard(
   state: MainUiState,
   onVideoMaxSizeChange: (Int) -> Unit,
   onVirtualDisplayEnabledChange: (Boolean) -> Unit,
-  onVirtualDisplaySpecChange: (String) -> Unit,
+  onVirtualDisplayWidthChange: (String) -> Unit,
+  onVirtualDisplayHeightChange: (String) -> Unit,
+  onVirtualDisplayDpiChange: (String) -> Unit,
   onTurnScreenOffChange: (Boolean) -> Unit,
 ) {
   val enabled = !state.busy
@@ -476,8 +490,14 @@ private fun MirrorOptionsCard(
           onCheckedChange = onVirtualDisplayEnabledChange)
       }
       if (state.virtualDisplayEnabled) {
-        OutlinedTextField(state.virtualDisplaySpec, onVirtualDisplaySpecChange, Modifier.fillMaxWidth(),
-          label = { Text(stringResource(R.string.virtual_display_size)) }, singleLine = true, enabled = enabled)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          NumberField(state.virtualDisplayWidth, { onVirtualDisplayWidthChange(it) },
+            stringResource(R.string.virtual_display_width), enabled, Modifier.weight(1f))
+          NumberField(state.virtualDisplayHeight, { onVirtualDisplayHeightChange(it) },
+            stringResource(R.string.virtual_display_height), enabled, Modifier.weight(1f))
+          NumberField(state.virtualDisplayDpi, { onVirtualDisplayDpiChange(it) },
+            stringResource(R.string.virtual_display_dpi), enabled, Modifier.weight(1f))
+        }
       }
       Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
@@ -491,8 +511,22 @@ private fun MirrorOptionsCard(
   }
 }
 
-/** Long-edge limits offered for the mirrored video; 0 keeps the device's original size. */
-private val RESOLUTION_PRESETS = listOf(0, 2560, 1920, 1280, 960, 720, 540)
+/** Numeric-only input used by the virtual display fields, so no separators have to be typed. */
+@Composable
+private fun NumberField(
+  value: String,
+  onValueChange: (String) -> Unit,
+  label: String,
+  enabled: Boolean,
+  modifier: Modifier = Modifier,
+) {
+  OutlinedTextField(value, { onValueChange(it.filter(Char::isDigit).take(4)) }, modifier,
+    label = { Text(label) }, singleLine = true, enabled = enabled,
+    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+}
+
+/** Short-edge limits offered for the mirrored video; 0 keeps the device's original size. */
+private val RESOLUTION_PRESETS = listOf(0, 1080, 720, 540, 480)
 
 @Composable
 private fun ConnectionHistoryList(
@@ -657,9 +691,9 @@ private fun MirrorNavBar(
   onToggleRemote: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  Row(modifier.clip(RoundedCornerShape(28.dp)).background(WeChatOverlayStrong)
-      .padding(horizontal = 12.dp, vertical = 8.dp),
-    horizontalArrangement = Arrangement.spacedBy(12.dp),
+  Row(modifier.clip(RoundedCornerShape(22.dp)).background(WeChatOverlayStrong)
+      .padding(horizontal = 8.dp, vertical = 4.dp),
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
     verticalAlignment = Alignment.CenterVertically) {
     RemoteButton(RemoteIcon.Back, stringResource(R.string.back), NAV_KEY_SIZE, NAV_ICON_SIZE) {
       onKey(KeyEvent.KEYCODE_BACK)
@@ -676,11 +710,11 @@ private fun MirrorNavBar(
   }
 }
 
-private val NAV_KEY_SIZE = 44.dp
-private val NAV_ICON_SIZE = 22.dp
+private val NAV_KEY_SIZE = 34.dp
+private val NAV_ICON_SIZE = 17.dp
 
 /** Room reserved below the floating remote for the navigation bar and its padding. */
-private val NAV_BAR_CLEARANCE = 76.dp
+private val NAV_BAR_CLEARANCE = 50.dp
 
 @Composable
 private fun FloatingRemote(
