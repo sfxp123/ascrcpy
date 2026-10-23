@@ -23,7 +23,7 @@ Romain Vimont (`@rom1v`) and the scrcpy contributors designed and built the prot
 server, and the whole idea of "mirror an Android device with nothing installed on it". AScrcpy
 reuses that work directly:
 
-- the bundled `app/src/main/assets/scrcpy-server-v4.0` is the **unmodified scrcpy 4.0 server**,
+- the bundled `app/src/main/assets/scrcpy-server-v5.0.1` is the **unmodified scrcpy 5.0.1 server**,
   byte-identical to the official artifact;
 - the controller speaks the **scrcpy wire protocol**, pinned to a matched client/server version.
 
@@ -63,7 +63,9 @@ Android TV that has no keyboard and no app store.
 
 - TCP ADB, remote Tailcat connections, Android 11+ wireless debugging pairing (code or QR), and USB Host with a persistent RSA identity.
 - Shell execution, sync push, and multiplexed arbitrary ADB services.
-- Bundled, matching scrcpy-server 4.0, started and stopped as part of the session.
+- Bundled, matching scrcpy-server 5.0.1, started and stopped as part of the session.
+- Mirror options: resolution (long-edge) presets, mirroring into a new virtual display with an
+  optional size/DPI, and turning the target screen off while mirroring (restored on stop).
 - Low-latency H.264 decoding into a `SurfaceView` via `MediaCodec`.
 - Single- and multi-pointer touch forwarding with pressure and correct coordinate mapping.
 - Automatic immersive preview after connecting, cutout- and notch-aware.

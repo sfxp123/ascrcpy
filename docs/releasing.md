@@ -81,6 +81,6 @@ git push origin v1.0.0
 
 ## 与 scrcpy 版本的关系
 
-`app/src/main/assets/scrcpy-server-v4.0` 与 `ScrcpyClient.SERVER_VERSION` 必须锁定同一个 scrcpy
-版本。升级 scrcpy 时要在同一个改动里更新 asset、协议实现、版本常量、
+`app/src/main/assets/scrcpy-server-v5.0.1` 与 `ScrcpyClient.kt` 中的 `SERVER_VERSION` 必须锁定同一个
+scrcpy 版本。升级 scrcpy 时要在同一个改动里更新 asset、协议实现、版本常量、
 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) 的 SHA-256、测试和架构文档，然后才打 tag。

@@ -40,8 +40,14 @@ class ControlMessageWriter(private val channel: AdbChannel) {
         channel.write(message)
     }
 
+    /** scrcpy `TYPE_SET_DISPLAY_POWER`: turns the target display on or off while mirroring. */
+    suspend fun setDisplayPower(on: Boolean) {
+        channel.write(byteArrayOf(TYPE_SET_DISPLAY_POWER, if (on) 1 else 0))
+    }
+
     private companion object {
         const val TYPE_INJECT_KEYCODE: Byte = 0
         const val TYPE_INJECT_TOUCH: Byte = 2
+        const val TYPE_SET_DISPLAY_POWER: Byte = 10
     }
 }

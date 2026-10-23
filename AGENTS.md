@@ -47,10 +47,10 @@ must remain replaceable through the existing interfaces and factories.
 
 ## scrcpy compatibility
 
-The client protocol and bundled server are a matched pair. The current pinned version is 4.0:
+The client protocol and bundled server are a matched pair. The current pinned version is 5.0.1:
 
-- asset: `app/src/main/assets/scrcpy-server-v4.0`
-- client constant: `ScrcpyClient.SERVER_VERSION`
+- asset: `app/src/main/assets/scrcpy-server-v5.0.1`
+- client constant: `SERVER_VERSION` in `ScrcpyClient.kt`
 - checksum and source information: `THIRD_PARTY_NOTICES.md`
 
 Never update only one side. A scrcpy upgrade must update the asset, protocol implementation,

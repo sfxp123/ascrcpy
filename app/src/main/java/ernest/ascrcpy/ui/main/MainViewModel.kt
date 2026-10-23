@@ -16,7 +16,9 @@ import ernest.ascrcpy.adb.AdbDevice
 import ernest.ascrcpy.adb.DefaultAdbClient
 import ernest.ascrcpy.adb.transport.UsbAdbTransport
 import ernest.ascrcpy.scrcpy.ScrcpyClient
+import ernest.ascrcpy.scrcpy.ScrcpyConfig
 import ernest.ascrcpy.scrcpy.ScrcpyState
+import ernest.ascrcpy.scrcpy.VirtualDisplay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -68,6 +70,10 @@ data class MainUiState(
   val console: String = "",
   val busy: Boolean = false,
   val scrcpyState: ScrcpyState = ScrcpyState.Idle,
+  val videoMaxSize: Int = 1920,
+  val virtualDisplayEnabled: Boolean = false,
+  val virtualDisplaySpec: String = "",
+  val turnScreenOff: Boolean = false,
 ) {
   val connected: Boolean get() = connectionState is AdbConnectionState.Connected
 }
@@ -93,6 +99,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     hostHistory = savedHosts,
     connectionHistory = connectionHistory,
     savedWirelessDevices = savedWirelessDevices,
+    videoMaxSize = preferences.getInt(VIDEO_MAX_SIZE_KEY, 1920),
+    virtualDisplayEnabled = preferences.getBoolean(VIRTUAL_DISPLAY_ENABLED_KEY, false),
+    virtualDisplaySpec = preferences.getString(VIRTUAL_DISPLAY_SPEC_KEY, "") ?: "",
+    turnScreenOff = preferences.getBoolean(TURN_SCREEN_OFF_KEY, false),
   ))
   private var surface: Surface? = null
   private var mirrorJob: Job? = null
@@ -131,6 +141,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   }
   fun setPairingPort(value: String) = form.update { copy(pairingPort = value.filter(Char::isDigit).take(5)) }
   fun setPairingCode(value: String) = form.update { copy(pairingCode = value.filter(Char::isDigit).take(6)) }
+
+  fun setVideoMaxSize(value: Int) {
+    preferences.edit().putInt(VIDEO_MAX_SIZE_KEY, value).apply()
+    form.update { copy(videoMaxSize = value) }
+  }
+
+  fun setVirtualDisplayEnabled(value: Boolean) {
+    preferences.edit().putBoolean(VIRTUAL_DISPLAY_ENABLED_KEY, value).apply()
+    form.update { copy(virtualDisplayEnabled = value) }
+  }
+
+  fun setVirtualDisplaySpec(value: String) {
+    preferences.edit().putString(VIRTUAL_DISPLAY_SPEC_KEY, value).apply()
+    form.update { copy(virtualDisplaySpec = value.trim()) }
+  }
+
+  fun setTurnScreenOff(value: Boolean) {
+    preferences.edit().putBoolean(TURN_SCREEN_OFF_KEY, value).apply()
+    form.update { copy(turnScreenOff = value) }
+  }
   fun usbDevices(): List<UsbDevice> = UsbAdbTransport.discover(usbManager)
   fun hasUsbPermission(device: UsbDevice): Boolean = usbManager.hasPermission(device)
 
@@ -636,10 +666,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       mirrorJob?.isActive == true || (streamState !is ScrcpyState.Idle && streamState !is ScrcpyState.Failed)
     ) return
     mirrorJob = viewModelScope.launch {
+      val snapshot = form.value
+      val config = try {
+        ScrcpyConfig(
+          maxSize = snapshot.videoMaxSize,
+          virtualDisplay = if (snapshot.virtualDisplayEnabled) parseVirtualDisplaySpec(snapshot.virtualDisplaySpec)
+            ?: throw IllegalArgumentException(string(R.string.log_invalid_virtual_display_size)) else null,
+          turnScreenOff = snapshot.turnScreenOff,
+        )
+      } catch (error: IllegalArgumentException) {
+        form.update { copy(console = error.message ?: string(R.string.log_invalid_virtual_display_size)) }
+        return@launch
+      }
       form.update { copy(busy = true, console = string(R.string.log_starting_scrcpy)) }
       runCatching {
-        getApplication<Application>().assets.open("scrcpy-server-v4.0").use { server ->
-          scrcpy.start(server, output)
+        getApplication<Application>().assets.open("scrcpy-server-v5.0.1").use { server ->
+          scrcpy.start(server, output, config)
         }
       }.onFailure { error -> form.update { copy(console = error.stackTraceToString()) } }
       form.update { copy(busy = false) }
@@ -772,12 +814,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val HISTORY_METHODS = setOf(ConnectionMethod.TCP, ConnectionMethod.TAILCAT,
       ConnectionMethod.TAILCAT_WIRELESS)
     const val SURFACE_SETTLE_DELAY_MILLIS = 300L
+    const val VIDEO_MAX_SIZE_KEY = "video_max_size_v1"
+    const val VIRTUAL_DISPLAY_ENABLED_KEY = "virtual_display_enabled_v1"
+    const val VIRTUAL_DISPLAY_SPEC_KEY = "virtual_display_spec_v1"
+    const val TURN_SCREEN_OFF_KEY = "turn_screen_off_v1"
   }
 }
 
 private fun logTailcatFailure(stage: String, error: Exception) {
   // Exception messages may contain endpoint details, so log only the failure class.
   android.util.Log.w("TailcatSession", "stage=$stage failed type=${error.javaClass.simpleName}")
+}
+
+/**
+ * Parses the `new_display` spec `[width x height][/dpi]`. A blank spec is valid and means
+ * the device default size; anything malformed returns null so the caller can reject it.
+ */
+internal fun parseVirtualDisplaySpec(spec: String): VirtualDisplay? {
+  if (spec.isBlank()) return VirtualDisplay()
+  val match = Regex("""^(\d+)x(\d+)(?:/(\d+))?$""").matchEntire(spec.trim()) ?: return null
+  val width = match.groupValues[1].toIntOrNull() ?: return null
+  val height = match.groupValues[2].toIntOrNull() ?: return null
+  // An explicit dpi must be positive, matching the server's parseNewDisplay; no dpi means default.
+  val dpi = match.groupValues[3].let { if (it.isEmpty()) 0 else it.toIntOrNull()?.takeIf { d -> d > 0 } ?: return null }
+  return runCatching { VirtualDisplay(width, height, dpi) }.getOrNull()
 }
 
 @StringRes

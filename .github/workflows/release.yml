@@ -133,7 +133,7 @@ jobs:
             echo
             echo "Built from \`$GITHUB_SHA\` and pushed to \`$TAG\`."
             echo
-            echo "The APK redistributes the unmodified scrcpy 4.0 server; see THIRD_PARTY_NOTICES.md."
+            echo "The APK redistributes the unmodified scrcpy 5.0.1 server; see THIRD_PARTY_NOTICES.md."
           } > "$notes"
           prerelease=()
           [ "$PRERELEASE" = "true" ] && prerelease+=("--prerelease")

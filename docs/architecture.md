@@ -51,7 +51,7 @@ app ──► scrcpy ──► adb
 - `MainViewModel`：组合 ADB 与 scrcpy 状态，持有会话生命周期；
 - `MainScreen`：目标地址输入、连接诊断、视频 Surface、全屏/刘海区适配、触摸坐标映射和悬浮遥控器；
 - `ui/device`：共用当前 ADB 会话的命令、应用管理与文件浏览页面；应用列表显示包名及当前用户的停用状态，数据清空、停用/启用和当前用户卸载通过包管理器命令执行并校验结果，文件下载使用系统目录选择器，目录读取通过公共 `AdbChannel` 的 `sync: LIST` 服务完成；
-- `assets/scrcpy-server-v4.0`：与客户端协议严格匹配的服务端二进制。
+- `assets/scrcpy-server-v5.0.1`：与客户端协议严格匹配的服务端二进制。
 
 `app` 是组合根，只负责调用库接口，不应实现 ADB framing 或 scrcpy 二进制协议。
 
@@ -107,8 +107,8 @@ Tailcat 连接由 `app` 的 `TailcatForwarder` 管理官方 Tailcat 进程。它
 |---|---|
 | `ScrcpyClient` | 上传/启动 server、打开通道、管理协程与关闭顺序 |
 | `VideoStreamDecoder` | 解析 codec/session/frame 元数据并驱动 `MediaCodec` |
-| `ControlMessageWriter` | 序列化触摸和按键控制消息 |
-| `ScrcpyConfig` | 分辨率、码率、最大帧率配置 |
+| `ControlMessageWriter` | 序列化触摸、按键和显示电源（息屏）控制消息 |
+| `ScrcpyConfig` | 分辨率、码率、最大帧率、虚拟屏（`new_display`）与息屏运行配置 |
 | `ScrcpyState` | 安装、启动、连接、播放、失败状态 |
 
 该模块只通过 `AdbClient` 与设备通信，不依赖默认 TCP 实现。
@@ -251,7 +251,7 @@ Compose 切换普通/全屏布局时可能短时间创建多个 `SurfaceView`；
 - 不记录 RSA 私钥或 AUTH token。
 - UI 展示 shell 诊断输出时应避免默认执行包含敏感信息的命令。
 - scrcpy wire protocol 是内部协议，server 和 client 必须锁定同一版本。
-- `scrcpy-server-v4.0` 是 scrcpy 官方未修改的 Apache-2.0 二进制；分发要求与复用范围见 `THIRD_PARTY_NOTICES.md`。
+- `scrcpy-server-v5.0.1` 是 scrcpy 官方未修改的 Apache-2.0 二进制；分发要求与复用范围见 `THIRD_PARTY_NOTICES.md`。
 - legacy TCP ADB 是明文 transport，应只在可信网络使用；Android 11+ 无线调试使用配对和 TLS 连接。
 
 ## 9. 测试策略

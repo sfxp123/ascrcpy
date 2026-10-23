@@ -123,7 +123,9 @@ fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     viewModel::setPairingCode, viewModel::pairWithCode, viewModel::startQrPairing,
     viewModel::stopQrPairing, connectUsb, viewModel::setTailcatAddress, viewModel::prepareWirelessPairing,
     viewModel::reconnectSavedWirelessDevice, viewModel::selectSavedWirelessDevice, viewModel.deviceClient,
-    viewModel::selectConnectionHistory, viewModel::deleteConnectionHistory)
+    viewModel::selectConnectionHistory, viewModel::deleteConnectionHistory,
+    viewModel::setVideoMaxSize, viewModel::setVirtualDisplayEnabled,
+    viewModel::setVirtualDisplaySpec, viewModel::setTurnScreenOff)
 }
 
 @Composable
@@ -157,6 +159,10 @@ internal fun MainScreen(
   deviceClient: AdbClient? = null,
   onSelectConnectionHistory: (String) -> Unit = {},
   onDeleteConnectionHistory: (String) -> Unit = {},
+  onVideoMaxSizeChange: (Int) -> Unit = {},
+  onVirtualDisplayEnabledChange: (Boolean) -> Unit = {},
+  onVirtualDisplaySpecChange: (String) -> Unit = {},
+  onTurnScreenOffChange: (Boolean) -> Unit = {},
 ) {
   var fullscreen by remember(state.connected) { mutableStateOf(state.connected) }
   var managingDevice by rememberSaveable { mutableStateOf(false) }
@@ -183,6 +189,7 @@ internal fun MainScreen(
       onMethodChange, onPairingHostChange, onPairingPortChange, onPairingCodeChange, onPair, onStartQr, onConnectUsb,
       onTailcatAddressChange, onPrepareWirelessPairing, onReconnectSavedWireless, onSelectSavedWireless,
       onSelectConnectionHistory, onDeleteConnectionHistory,
+      onVideoMaxSizeChange, onVirtualDisplayEnabledChange, onVirtualDisplaySpecChange, onTurnScreenOffChange,
       onOpenDevice = { fullscreen = false; managingDevice = true },
       previewControls = { FloatingRemote(onKey, { fullscreen = true }, remoteState, Modifier.fillMaxSize()) })
   }
@@ -231,6 +238,10 @@ private fun NormalScreen(
   onSelectSavedWireless: (String) -> Unit,
   onSelectConnectionHistory: (String) -> Unit,
   onDeleteConnectionHistory: (String) -> Unit,
+  onVideoMaxSizeChange: (Int) -> Unit,
+  onVirtualDisplayEnabledChange: (Boolean) -> Unit,
+  onVirtualDisplaySpecChange: (String) -> Unit,
+  onTurnScreenOffChange: (Boolean) -> Unit,
   onOpenDevice: () -> Unit,
   previewControls: @Composable () -> Unit,
 ) {
@@ -388,6 +399,8 @@ private fun NormalScreen(
         }
       }
       if (state.connected) {
+        MirrorOptionsCard(state, onVideoMaxSizeChange, onVirtualDisplayEnabledChange,
+          onVirtualDisplaySpecChange, onTurnScreenOffChange)
         Card(Modifier.fillMaxWidth()) {
           Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
@@ -413,6 +426,59 @@ private fun NormalScreen(
     }
   }
 }
+
+/** Mirror session options applied the next time the scrcpy session starts. */
+@Composable
+private fun MirrorOptionsCard(
+  state: MainUiState,
+  onVideoMaxSizeChange: (Int) -> Unit,
+  onVirtualDisplayEnabledChange: (Boolean) -> Unit,
+  onVirtualDisplaySpecChange: (String) -> Unit,
+  onTurnScreenOffChange: (Boolean) -> Unit,
+) {
+  val enabled = !state.busy &&
+    (state.scrcpyState is ScrcpyState.Idle || state.scrcpyState is ScrcpyState.Failed)
+  Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)) {
+    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+      Text(stringResource(R.string.mirror_options), style = MaterialTheme.typography.titleLarge)
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.mirror_resolution), style = MaterialTheme.typography.titleMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          RESOLUTION_PRESETS.forEach { preset ->
+            FilterChip(selected = state.videoMaxSize == preset, enabled = enabled,
+              onClick = { onVideoMaxSizeChange(preset) },
+              label = { Text(if (preset == 0) stringResource(R.string.resolution_original) else preset.toString()) })
+          }
+        }
+      }
+      Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+          Text(stringResource(R.string.virtual_display), style = MaterialTheme.typography.titleMedium)
+          Text(stringResource(R.string.virtual_display_description),
+            color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+        }
+        Switch(checked = state.virtualDisplayEnabled, enabled = enabled,
+          onCheckedChange = onVirtualDisplayEnabledChange)
+      }
+      if (state.virtualDisplayEnabled) {
+        OutlinedTextField(state.virtualDisplaySpec, onVirtualDisplaySpecChange, Modifier.fillMaxWidth(),
+          label = { Text(stringResource(R.string.virtual_display_size)) }, singleLine = true, enabled = enabled)
+      }
+      Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+          Text(stringResource(R.string.turn_screen_off), style = MaterialTheme.typography.titleMedium)
+          Text(stringResource(R.string.turn_screen_off_description),
+            color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+        }
+        Switch(checked = state.turnScreenOff, enabled = enabled, onCheckedChange = onTurnScreenOffChange)
+      }
+    }
+  }
+}
+
+/** Long-edge limits offered for the mirrored video; 0 keeps the device's original size. */
+private val RESOLUTION_PRESETS = listOf(0, 2560, 1920, 1280, 960)
 
 @Composable
 private fun ConnectionHistoryList(

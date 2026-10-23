@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withTimeoutOrNull
 
 class ScrcpyClient(private val adb: AdbClient) : Closeable {
     private val mutableState = MutableStateFlow<ScrcpyState>(ScrcpyState.Idle)
@@ -32,6 +33,7 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
     @Volatile private var serverChannel: AdbChannel? = null
     private var controller: ControlMessageWriter? = null
     @Volatile private var sessionGeneration = 0L
+    @Volatile private var screenOffApplied = false
 
     suspend fun start(server: InputStream, surface: Surface, config: ScrcpyConfig = ScrcpyConfig()) {
         stop()
@@ -41,13 +43,7 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
             adb.push(server, SERVER_PATH, 0x1A4)
             val scid = Random.nextInt(1, Int.MAX_VALUE)
             mutableState.value = ScrcpyState.StartingServer
-            val command = buildString {
-                append("CLASSPATH=$SERVER_PATH app_process / com.genymobile.scrcpy.Server $SERVER_VERSION ")
-                append("scid=${scid.toString(16).padStart(8, '0')} tunnel_forward=true ")
-                append("audio=false video_codec=h264 max_size=${config.maxSize} ")
-                append("video_bit_rate=${config.videoBitRate} max_fps=${config.maxFps} ")
-                append("send_device_meta=false send_dummy_byte=false cleanup=false")
-            }
+            val command = buildServerCommand(config, scid)
             scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             serverJob = scope!!.launch {
                 var channel: AdbChannel? = null
@@ -76,6 +72,13 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
             videoChannel = openWithRetry("localabstract:$socketName")
             controlChannel = openWithRetry("localabstract:$socketName")
             controller = ControlMessageWriter(checkNotNull(controlChannel))
+            if (config.turnScreenOff) {
+                runCatching { checkNotNull(controller).setDisplayPower(false) }
+                    .onSuccess { screenOffApplied = true }
+                    .onFailure {
+                        if (generation == sessionGeneration) mutableState.value = ScrcpyState.Failed(it)
+                    }
+            }
             videoJob = scope!!.launch {
                 runCatching {
                     VideoStreamDecoder(checkNotNull(videoChannel), surface) { videoSize ->
@@ -111,7 +114,22 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
 
     fun stop() {
         sessionGeneration++
-        stopChannels()
+        val activeScope = scope
+        val activeController = controller
+        if (screenOffApplied && activeScope != null && activeController != null) {
+            // Restore the target display before tearing down, but never leave the channels
+            // half-open if the write stalls on a dead device.
+            screenOffApplied = false
+            activeScope.launch {
+                runCatching {
+                    withTimeoutOrNull(RESTORE_POWER_TIMEOUT_MILLIS) { activeController.setDisplayPower(true) }
+                }
+                stopChannels()
+            }
+        } else {
+            screenOffApplied = false
+            stopChannels()
+        }
         mutableState.value = ScrcpyState.Idle
     }
 
@@ -148,7 +166,20 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
     override fun close() = stop()
 
     private companion object {
-        const val SERVER_VERSION = "4.0"
-        const val SERVER_PATH = "/data/local/tmp/ascrcpy-server.jar"
+        const val RESTORE_POWER_TIMEOUT_MILLIS = 2_000L
     }
+}
+
+/** Version of the bundled `scrcpy-server` asset; must always match it. */
+internal const val SERVER_VERSION = "5.0.1"
+internal const val SERVER_PATH = "/data/local/tmp/ascrcpy-server.jar"
+
+/** Shell command that starts the bundled scrcpy server with the options the client parses. */
+internal fun buildServerCommand(config: ScrcpyConfig, scid: Int): String = buildString {
+    append("CLASSPATH=$SERVER_PATH app_process / com.genymobile.scrcpy.Server $SERVER_VERSION ")
+    append("scid=${scid.toString(16).padStart(8, '0')} tunnel_forward=true ")
+    append("audio=false video_codec=h264 max_size=${config.maxSize} ")
+    append("video_bit_rate=${config.videoBitRate} max_fps=${config.maxFps} ")
+    config.virtualDisplay?.let { append("new_display=${it.toServerValue()} ") }
+    append("send_device_meta=false send_dummy_byte=false cleanup=false")
 }

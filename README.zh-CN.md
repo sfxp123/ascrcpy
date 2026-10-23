@@ -21,7 +21,7 @@
 Romain Vimont（`@rom1v`）与 scrcpy 的所有贡献者设计并实现了这套协议、设备端 server，以及
 "不向设备安装任何东西就能镜像 Android" 这个想法本身。AScrcpy 直接复用了他们的成果：
 
-- `app/src/main/assets/scrcpy-server-v4.0` 是**未经修改的 scrcpy 4.0 server**，与官方发布的产物
+- `app/src/main/assets/scrcpy-server-v5.0.1` 是**未经修改的 scrcpy 5.0.1 server**，与官方发布的产物
   逐字节一致；
 - 控制端使用 **scrcpy wire protocol**，客户端与 server 锁定为同一版本。
 
@@ -58,7 +58,8 @@ AScrcpy 去掉了这个前提：
 
 - 支持 TCP ADB、Tailcat 远程连接、Android 11+ 无线调试配对码或二维码，以及 USB 主机连接，使用持久化 RSA 身份。
 - Shell 执行、sync push，以及多路复用的任意 ADB service。
-- 内置匹配的 scrcpy-server 4.0，随会话启动和停止。
+- 内置匹配的 scrcpy-server 5.0.1，随会话启动和停止。
+- 投屏选项：分辨率（长边）预设、可指定尺寸/DPI 的虚拟屏镜像、息屏运行（停止投屏时恢复亮屏）。
 - 通过 `MediaCodec` 将 H.264 低延迟解码到 `SurfaceView`。
 - 单指与多指触摸转发，带压力值和正确的坐标映射。
 - 连接后自动进入沉浸式预览，适配挖孔与刘海区域。

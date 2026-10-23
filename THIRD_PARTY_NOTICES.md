@@ -19,18 +19,18 @@ Android extracts them to an executable native library directory; they are run as
 Tailcat's upstream repository documents its other dependencies and their licenses. AScrcpy uses
 Tailcat only as a loopback TCP forwarder; the ADB and scrcpy implementations remain separate.
 
-## scrcpy-server 4.0
+## scrcpy-server 5.0.1
 
-AScrcpy redistributes the unmodified `scrcpy-server` version 4.0 binary from the application assets.
+AScrcpy redistributes the unmodified `scrcpy-server` version 5.0.1 binary from the application assets.
 The file is byte-identical to the artifact published by the scrcpy project.
 
 - Project: <https://github.com/Genymobile/scrcpy>
-- Tag: `v4.0`
+- Tag: `v5.0.1`
 - Copyright: Copyright (C) 2018 Genymobile, Copyright (C) 2018-2026 Romain Vimont, and scrcpy contributors
 - License: Apache License, Version 2.0
-- License text: <https://github.com/Genymobile/scrcpy/blob/v4.0/LICENSE>
-- Corresponding source: <https://github.com/Genymobile/scrcpy/tree/v4.0>
-- Binary SHA-256: `84924bd564a1eb6089c872c7521f968058977f91f5ff02514a8c74aff3210f3a`
+- License text: <https://github.com/Genymobile/scrcpy/blob/v5.0.1/LICENSE>
+- Corresponding source: <https://github.com/Genymobile/scrcpy/tree/v5.0.1>
+- Binary SHA-256: `764eb6f79811d5211fe9df341120882ba9994c7a61b897d7bf3fb662e53bc536`
 
 The whole scrcpy repository, client and server alike, is licensed under the Apache License 2.0.
 Redistributing this binary therefore requires keeping the copyright and license notices above, and
@@ -45,7 +45,7 @@ this project. It contains no scrcpy client source code.
 
 AScrcpy speaks the scrcpy wire protocol, which is an internal protocol of the scrcpy project and is
 versioned together with it. The bundled server and the client must therefore always be the same
-scrcpy version; see `ScrcpyClient.SERVER_VERSION`.
+scrcpy version; see `SERVER_VERSION` in `ScrcpyClient.kt`.
 
 ## Design reference
 
