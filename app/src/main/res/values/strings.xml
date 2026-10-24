@@ -174,7 +174,10 @@
     <string name="virtual_display_app_picker_title">Installed apps</string>
     <string name="virtual_display_app_search">Search package names</string>
     <string name="virtual_display_app_show_system">Show system apps</string>
-    <string name="virtual_display_app_empty">No matching apps. Connect the target device first.</string>
+    <string name="virtual_display_app_empty">No matching apps. Try a different search or enable system apps.</string>
+    <string name="virtual_display_app_disconnected">Connect the target device to list its apps.</string>
+    <string name="virtual_display_app_error">Could not read apps: %1$s</string>
+    <string name="virtual_display_app_retry">Retry</string>
     <string name="close">Close</string>
     <string name="turn_screen_off">Screen off while mirroring</string>
     <string name="turn_screen_off_description">Turn the target display off during mirroring and restore it on stop.</string>
@@ -183,4 +186,5 @@
     <string name="log_virtual_display_no_app">Could not resolve the app to start on the virtual display. Enter its package name, or check the device launcher.</string>
     <string name="minimize_remote">Minimize remote</string>
     <string name="rotate_screen">Rotate screen</string>
+    <string name="log_rotate_failed">Could not rotate the screen: %1$s</string>
 </resources>

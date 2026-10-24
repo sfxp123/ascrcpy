@@ -470,8 +470,6 @@ private fun MirrorOptionsCard(
   onTurnScreenOffChange: (Boolean) -> Unit,
 ) {
   val enabled = !state.busy
-  // Shell commands must not run mid-mirror, so the app list is only readable while stopped.
-  val canReadApps = enabled && state.scrcpyState !is ScrcpyState.Streaming
   var pickingApp by remember { mutableStateOf(false) }
   Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -525,7 +523,7 @@ private fun MirrorOptionsCard(
             label = { Text(stringResource(R.string.virtual_display_app)) },
             placeholder = { Text(stringResource(R.string.virtual_display_app_hint)) },
             singleLine = true, enabled = enabled)
-          TextButton(onClick = { pickingApp = true; onLoadInstalledApps() }, enabled = canReadApps) {
+          TextButton(onClick = { pickingApp = true }, enabled = enabled) {
             Text(stringResource(R.string.virtual_display_app_pick), maxLines = 1, softWrap = false)
           }
         }
@@ -540,7 +538,8 @@ private fun MirrorOptionsCard(
       }
     }
   }
-  if (pickingApp) StartAppPicker(state, onDismiss = { pickingApp = false }, onPick = {
+  if (pickingApp) StartAppPicker(state, onDismiss = { pickingApp = false },
+    onRetry = onLoadInstalledApps, onPick = {
     onVirtualDisplayAppChange(it)
     pickingApp = false
   })
@@ -548,9 +547,18 @@ private fun MirrorOptionsCard(
 
 /** Lists the target's installed apps so the virtual display's start app needs no typing. */
 @Composable
-private fun StartAppPicker(state: MainUiState, onDismiss: () -> Unit, onPick: (String) -> Unit) {
+private fun StartAppPicker(
+  state: MainUiState,
+  onDismiss: () -> Unit,
+  onRetry: () -> Unit,
+  onPick: (String) -> Unit,
+) {
   var query by remember { mutableStateOf("") }
   var showSystem by remember { mutableStateOf(false) }
+  // Read once when the picker opens; the dialog stays usable with whatever was listed before.
+  LaunchedEffect(Unit) {
+    if (state.installedApps.isEmpty() && !state.loadingApps && state.connected) onRetry()
+  }
   val apps = remember(state.installedApps, query, showSystem) {
     state.installedApps.filter { (showSystem || !it.system) &&
       it.packageName.contains(query.trim(), ignoreCase = true) }
@@ -566,9 +574,15 @@ private fun StartAppPicker(state: MainUiState, onDismiss: () -> Unit, onPick: (S
             style = MaterialTheme.typography.bodyMedium)
           Switch(checked = showSystem, onCheckedChange = { showSystem = it })
         }
+        state.appsError?.let { message ->
+          Text(stringResource(R.string.virtual_display_app_error, message),
+            color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+        }
         when {
           state.loadingApps -> CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
-          apps.isEmpty() -> Text(stringResource(R.string.virtual_display_app_empty),
+          apps.isEmpty() -> Text(
+            stringResource(if (state.connected) R.string.virtual_display_app_empty
+              else R.string.virtual_display_app_disconnected),
             color = MaterialTheme.colorScheme.onSurfaceVariant)
           else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
             items(apps, key = { it.packageName }) { app ->
@@ -576,6 +590,11 @@ private fun StartAppPicker(state: MainUiState, onDismiss: () -> Unit, onPick: (S
                 .clickable { onPick(app.packageName) }.padding(vertical = 12.dp),
                 style = MaterialTheme.typography.bodyMedium)
             }
+          }
+        }
+        if (state.connected) {
+          TextButton(onClick = onRetry, enabled = !state.loadingApps) {
+            Text(stringResource(R.string.virtual_display_app_retry))
           }
         }
       }

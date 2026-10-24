@@ -20,7 +20,6 @@ import ernest.ascrcpy.scrcpy.ScrcpyConfig
 import ernest.ascrcpy.scrcpy.ScrcpyState
 import ernest.ascrcpy.scrcpy.VirtualDisplay
 import ernest.ascrcpy.ui.device.AppInfo
-import ernest.ascrcpy.ui.device.DeviceManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -30,12 +29,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.channels.Channel
 import kotlin.math.roundToInt
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 
 enum class ConnectionMethod { TCP, TAILCAT, TAILCAT_WIRELESS, WIRELESS_CODE, WIRELESS_QR, USB }
 
@@ -82,6 +84,7 @@ data class MainUiState(
   val virtualDisplayApp: String = "",
   val installedApps: List<AppInfo> = emptyList(),
   val loadingApps: Boolean = false,
+  val appsError: String? = null,
   val turnScreenOff: Boolean = false,
 ) {
   val connected: Boolean get() = connectionState is AdbConnectionState.Connected
@@ -198,17 +201,91 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   /** Reads the installed apps so the start-app field can be filled from a list instead of typed. */
   fun loadInstalledApps() {
     if (form.value.loadingApps) return
-    form.update { copy(loadingApps = true) }
+    form.update { copy(loadingApps = true, appsError = null) }
     viewModelScope.launch {
-      val apps = runCatching { DeviceManager(getApplication<Application>(), client).applications() }
-        .getOrElse { emptyList() }
-      form.update { copy(loadingApps = false, installedApps = apps) }
+      try {
+        val apps = withTimeout(APP_LIST_TIMEOUT_MILLIS) { readInstalledApps() }
+        form.update { copy(loadingApps = false, installedApps = apps) }
+      } catch (error: CancellationException) {
+        form.update { copy(loadingApps = false) }
+        throw error
+      } catch (error: Exception) {
+        form.update { copy(loadingApps = false, appsError = error.message ?: error.javaClass.simpleName) }
+      }
     }
   }
 
-  /** Rotates the mirrored display, like scrcpy's rotate shortcut. */
+  /**
+   * Lists packages over a raw shell channel. The facade's `shell()` is serialized with the rest of
+   * its API, and `pm list packages` already reports the current user, so neither is needed here.
+   */
+  private suspend fun readInstalledApps(): List<AppInfo> = withContext(Dispatchers.IO) {
+    val disabled = shellText("pm list packages -d").lineSequence()
+      .filter { it.startsWith("package:") }.map { it.removePrefix("package:").trim() }.toSet()
+    val packages = shellText("pm list packages -f").lineSequence().mapNotNull { line ->
+      if (!line.startsWith("package:")) return@mapNotNull null
+      val raw = line.removePrefix("package:")
+      val split = raw.lastIndexOf('=')
+      if (split <= 0) null else raw.substring(split + 1).trim() to raw.substring(0, split)
+    }
+    packages.map { (pkg, apk) ->
+      AppInfo(pkg, "—", "—",
+        listOf("/system/", "/system_ext/", "/product/", "/vendor/", "/odm/").any { apk.startsWith(it) },
+        pkg !in disabled)
+    }.distinctBy { it.packageName }.sortedBy { it.packageName.lowercase() }
+  }
+
+  /** Runs a shell command on a private channel and returns everything it printed. */
+  private suspend fun shellText(command: String): String = withContext(Dispatchers.IO) {
+    val channel = client.open("shell:$command")
+    try {
+      val output = ByteArrayOutputStream()
+      val buffer = ByteArray(8_192)
+      while (true) {
+        val count = channel.read(buffer, 0, buffer.size)
+        if (count <= 0) break
+        output.write(buffer, 0, count)
+      }
+      output.toString(Charsets.UTF_8.name())
+    } finally {
+      runCatching { channel.close() }
+    }
+  }
+
+  /**
+   * Rotates the target's screen by 90 degrees.
+   *
+   * scrcpy's `TYPE_ROTATE_DEVICE` message only cycles a rotation that is already frozen and merely
+   * thaws it when auto-rotate is enabled, which leaves the picture unchanged on a normal phone.
+   * Disabling auto-rotate and stepping `user_rotation` rotates the display itself, so the result
+   * also shows in the mirrored video.
+   */
   fun rotateDevice() {
-    viewModelScope.launch { scrcpy.rotateDevice() }
+    viewModelScope.launch {
+      try {
+        rotateTargetDisplay()
+      } catch (error: CancellationException) {
+        throw error
+      } catch (error: Exception) {
+        form.update { copy(console = string(R.string.log_rotate_failed,
+          error.message ?: string(R.string.unknown_error))) }
+      }
+    }
+  }
+
+  private suspend fun rotateTargetDisplay() = withContext(Dispatchers.IO) {
+    val current = shellOutput("settings get system user_rotation").trim().toIntOrNull() ?: 0
+    shellOutput("settings put system accelerometer_rotation 0")
+    shellOutput("settings put system user_rotation ${(current + 1) % 4}")
+  }
+
+  /** Runs a shell command and fails loudly, so a rejected command is not silently ignored. */
+  private suspend fun shellOutput(command: String): String {
+    val result = client.shell(command)
+    if (result.exitCode?.let { it != 0 } == true) {
+      error(result.text().trim().ifBlank { "$command failed" })
+    }
+    return result.text()
   }
 
   fun setTurnScreenOff(value: Boolean) {
@@ -926,6 +1003,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     const val VIRTUAL_DISPLAY_DPI_KEY = "virtual_display_dpi_v2"
     const val VIRTUAL_DISPLAY_APP_KEY = "virtual_display_app_v1"
     const val TURN_SCREEN_OFF_KEY = "turn_screen_off_v1"
+    /** Bounds the package listing so a hung shell cannot keep the picker spinning forever. */
+    const val APP_LIST_TIMEOUT_MILLIS = 20_000L
   }
 }
 
