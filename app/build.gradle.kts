@@ -21,10 +21,10 @@ android {
         minSdk = 26
         targetSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // Overridden by the release workflow from the pushed tag so published APKs are
-        // distinguishable; local builds keep the defaults.
-        versionCode = project.findProperty("ascrcpyVersionCode")?.toString()?.toIntOrNull() ?: 1
-        versionName = project.findProperty("ascrcpyVersionName")?.toString() ?: "1.0"
+        // Overridden by CI and the release workflow from the pushed tag or run number so published
+        // APKs are distinguishable; local builds keep the defaults. Code = MAJOR*10000+MINOR*100+PATCH.
+        versionCode = project.findProperty("ascrcpyVersionCode")?.toString()?.toIntOrNull() ?: 10400
+        versionName = project.findProperty("ascrcpyVersionName")?.toString() ?: "1.4.0"
     }
 
     signingConfigs {

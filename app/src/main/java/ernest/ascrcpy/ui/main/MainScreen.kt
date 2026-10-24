@@ -22,6 +22,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -128,8 +130,8 @@ fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     viewModel::selectConnectionHistory, viewModel::deleteConnectionHistory,
     viewModel::setVideoMaxSize, viewModel::setVideoBitRate, viewModel::setVirtualDisplayEnabled,
     viewModel::setVirtualDisplayWidth, viewModel::setVirtualDisplayHeight,
-    viewModel::setVirtualDisplayDpi, viewModel::setVirtualDisplayApp, viewModel::setTurnScreenOff,
-    viewModel::rotateDevice)
+    viewModel::setVirtualDisplayDpi, viewModel::setVirtualDisplayApp, viewModel::loadInstalledApps,
+    viewModel::setTurnScreenOff, viewModel::rotateDevice)
 }
 
 @Composable
@@ -170,6 +172,7 @@ internal fun MainScreen(
   onVirtualDisplayHeightChange: (String) -> Unit = {},
   onVirtualDisplayDpiChange: (String) -> Unit = {},
   onVirtualDisplayAppChange: (String) -> Unit = {},
+  onLoadInstalledApps: () -> Unit = {},
   onTurnScreenOffChange: (Boolean) -> Unit = {},
   onRotateDevice: () -> Unit = {},
 ) {
@@ -199,7 +202,8 @@ internal fun MainScreen(
       onTailcatAddressChange, onPrepareWirelessPairing, onReconnectSavedWireless, onSelectSavedWireless,
       onSelectConnectionHistory, onDeleteConnectionHistory,
       onVideoMaxSizeChange, onVideoBitRateChange, onVirtualDisplayEnabledChange, onVirtualDisplayWidthChange,
-      onVirtualDisplayHeightChange, onVirtualDisplayDpiChange, onVirtualDisplayAppChange, onTurnScreenOffChange,
+      onVirtualDisplayHeightChange, onVirtualDisplayDpiChange, onVirtualDisplayAppChange,
+      onLoadInstalledApps, onTurnScreenOffChange,
       onOpenDevice = { fullscreen = false; managingDevice = true },
       previewControls = {
         FloatingRemote(onKey, { fullscreen = true }, onRotateDevice, remoteState, Modifier.fillMaxSize())
@@ -257,6 +261,7 @@ private fun NormalScreen(
   onVirtualDisplayHeightChange: (String) -> Unit,
   onVirtualDisplayDpiChange: (String) -> Unit,
   onVirtualDisplayAppChange: (String) -> Unit,
+  onLoadInstalledApps: () -> Unit,
   onTurnScreenOffChange: (Boolean) -> Unit,
   onOpenDevice: () -> Unit,
   previewControls: @Composable () -> Unit,
@@ -416,7 +421,7 @@ private fun NormalScreen(
       }
       MirrorOptionsCard(state, onVideoMaxSizeChange, onVideoBitRateChange, onVirtualDisplayEnabledChange,
         onVirtualDisplayWidthChange, onVirtualDisplayHeightChange, onVirtualDisplayDpiChange,
-        onVirtualDisplayAppChange, onTurnScreenOffChange)
+        onVirtualDisplayAppChange, onLoadInstalledApps, onTurnScreenOffChange)
       if (state.connected) {
         Card(Modifier.fillMaxWidth()) {
           Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -461,9 +466,13 @@ private fun MirrorOptionsCard(
   onVirtualDisplayHeightChange: (String) -> Unit,
   onVirtualDisplayDpiChange: (String) -> Unit,
   onVirtualDisplayAppChange: (String) -> Unit,
+  onLoadInstalledApps: () -> Unit,
   onTurnScreenOffChange: (Boolean) -> Unit,
 ) {
   val enabled = !state.busy
+  // Shell commands must not run mid-mirror, so the app list is only readable while stopped.
+  val canReadApps = enabled && state.scrcpyState !is ScrcpyState.Streaming
+  var pickingApp by remember { mutableStateOf(false) }
   Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
       Text(stringResource(R.string.mirror_options), style = MaterialTheme.typography.titleLarge)
@@ -511,10 +520,15 @@ private fun MirrorOptionsCard(
           NumberField(state.virtualDisplayDpi, { onVirtualDisplayDpiChange(it) },
             stringResource(R.string.virtual_display_dpi), enabled, Modifier.weight(1f))
         }
-        OutlinedTextField(state.virtualDisplayApp, onVirtualDisplayAppChange, Modifier.fillMaxWidth(),
-          label = { Text(stringResource(R.string.virtual_display_app)) },
-          placeholder = { Text(stringResource(R.string.virtual_display_app_hint)) },
-          singleLine = true, enabled = enabled)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+          OutlinedTextField(state.virtualDisplayApp, onVirtualDisplayAppChange, Modifier.weight(1f),
+            label = { Text(stringResource(R.string.virtual_display_app)) },
+            placeholder = { Text(stringResource(R.string.virtual_display_app_hint)) },
+            singleLine = true, enabled = enabled)
+          TextButton(onClick = { pickingApp = true; onLoadInstalledApps() }, enabled = canReadApps) {
+            Text(stringResource(R.string.virtual_display_app_pick), maxLines = 1, softWrap = false)
+          }
+        }
       }
       Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
@@ -526,6 +540,47 @@ private fun MirrorOptionsCard(
       }
     }
   }
+  if (pickingApp) StartAppPicker(state, onDismiss = { pickingApp = false }, onPick = {
+    onVirtualDisplayAppChange(it)
+    pickingApp = false
+  })
+}
+
+/** Lists the target's installed apps so the virtual display's start app needs no typing. */
+@Composable
+private fun StartAppPicker(state: MainUiState, onDismiss: () -> Unit, onPick: (String) -> Unit) {
+  var query by remember { mutableStateOf("") }
+  var showSystem by remember { mutableStateOf(false) }
+  val apps = remember(state.installedApps, query, showSystem) {
+    state.installedApps.filter { (showSystem || !it.system) &&
+      it.packageName.contains(query.trim(), ignoreCase = true) }
+  }
+  AlertDialog(onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.virtual_display_app_picker_title)) },
+    text = {
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(),
+          placeholder = { Text(stringResource(R.string.virtual_display_app_search)) }, singleLine = true)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+          Text(stringResource(R.string.virtual_display_app_show_system), Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium)
+          Switch(checked = showSystem, onCheckedChange = { showSystem = it })
+        }
+        when {
+          state.loadingApps -> CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
+          apps.isEmpty() -> Text(stringResource(R.string.virtual_display_app_empty),
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+          else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
+            items(apps, key = { it.packageName }) { app ->
+              Text(app.packageName, Modifier.fillMaxWidth()
+                .clickable { onPick(app.packageName) }.padding(vertical = 12.dp),
+                style = MaterialTheme.typography.bodyMedium)
+            }
+          }
+        }
+      }
+    },
+    confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } })
 }
 
 /** Numeric-only input used by the virtual display fields, so no separators have to be typed. */

@@ -34,13 +34,24 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # AGP generates a debug keystore in $HOME/.android on first use. Restoring it keeps the debug
+      # APK signature stable across runs, so a new build installs over the previous one instead of
+      # requiring an uninstall first.
+      - name: Restore the debug keystore
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
+
       - name: Run unit tests and assemble both variants
         run: |
           ./gradlew --no-daemon \
             :scrcpy:testDebugUnitTest \
             :app:testDebugUnitTest \
             :app:assembleDebug \
-            :app:assembleRelease
+            :app:assembleRelease \
+            -PascrcpyVersionCode=$((10400 + ${GITHUB_RUN_NUMBER})) \
+            -PascrcpyVersionName="1.4.${GITHUB_RUN_NUMBER}"
 
       - name: Upload the debug APK
         uses: actions/upload-artifact@v4

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Flat brand colour only: the glyph carries the whole identity. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#F7F7F7" />
+    <solid android:color="#07C160" />
 </shape>

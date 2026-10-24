@@ -170,6 +170,12 @@
     <string name="virtual_display_dpi">DPI</string>
     <string name="virtual_display_app">启动应用</string>
     <string name="virtual_display_app_hint">包名，如 com.android.settings（留空则启动设备桌面）</string>
+    <string name="virtual_display_app_pick">读取</string>
+    <string name="virtual_display_app_picker_title">已安装应用</string>
+    <string name="virtual_display_app_search">搜索包名</string>
+    <string name="virtual_display_app_show_system">显示系统应用</string>
+    <string name="virtual_display_app_empty">没有匹配的应用。请先连接目标设备。</string>
+    <string name="close">关闭</string>
     <string name="turn_screen_off">息屏运行</string>
     <string name="turn_screen_off_description">投屏期间关闭目标设备屏幕，停止投屏时恢复。</string>
     <string name="log_invalid_virtual_display_size">虚拟屏尺寸无效。请同时填写宽和高，或三项都留空以使用设备尺寸。</string>

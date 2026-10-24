@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
-    android:src="@drawable/ic_launcher_art"
-    android:antialias="true"
-    android:filter="true"
-    android:gravity="fill" />
+<!-- One screen rectangle with a play cut-out: the smallest glyph that still reads as "mirror". -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M40,24 H68 A14,14 0 0,1 82,38 V70 A14,14 0 0,1 68,84 H40 A14,14 0 0,1 26,70 V38 A14,14 0 0,1 40,24 Z M47,40 V68 L69,54 Z" />
+</vector>

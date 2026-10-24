@@ -6,104 +6,74 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Mirror and control one Android device from another Android device. AScrcpy puts a full scrcpy
-controller on an Android phone or tablet: no PC, no root, nothing installed on the target.
+Mirror and control one Android device from another Android device. No PC, no root, nothing installed
+on the target. AScrcpy connects straight to the target's `adbd`, pushes the scrcpy server, decodes the
+H.264 stream with `MediaCodec`, and turns touches and key presses into scrcpy control messages.
 
-It connects straight to the target's `adbd`, pushes a matching scrcpy server, decodes the H.264
-stream with `MediaCodec`, and turns touches and key presses into scrcpy control messages. The whole
-controller UI is Jetpack Compose.
+This repository is a fork of [Ernest-su/ascrcpy](https://github.com/Ernest-su/ascrcpy) that tracks a
+newer scrcpy server and adds mirror options: resolution and bit rate presets, virtual-display mirroring
+with a chosen start app, and a floating remote with rotate and minimize keys.
 
----
+## Built on
 
-## Acknowledgements — this project stands on scrcpy
+Everything below is upstream work this project depends on. The bundled binaries are redistributed
+unmodified; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for checksums, licences and source links.
 
-**AScrcpy exists because of [scrcpy](https://github.com/Genymobile/scrcpy).**
-
-Romain Vimont (`@rom1v`) and the scrcpy contributors designed and built the protocol, the device
-server, and the whole idea of "mirror an Android device with nothing installed on it". AScrcpy
-reuses that work directly:
-
-- the bundled `app/src/main/assets/scrcpy-server-v5.0.1` is the **unmodified scrcpy 5.0.1 server**,
-  byte-identical to the official artifact;
-- the controller speaks the **scrcpy wire protocol**, pinned to a matched client/server version.
-
-Everything else - the ADB host implementation, the stream and control protocol handling, the
-`MediaCodec` decoder, and the entire Compose interface - is an independent implementation written for
-this project. No scrcpy client source code is included.
-
-scrcpy itself is licensed under the Apache License 2.0, so AScrcpy is too. See
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the exact version, checksum, license text, and
-corresponding source.
-
-If scrcpy is useful to you, please consider supporting it upstream — AScrcpy is downstream of it.
-
----
-
-## Why Android-to-Android
-
-scrcpy is excellent, but it assumes a computer on the other end. That is the one thing you often do
-not have when the device you want to control is a TV box, a set-top box, an Android-based kiosk, or
-someone else's spare handset.
-
-AScrcpy removes that requirement:
-
-|  | scrcpy | AScrcpy |
+| Project | What AScrcpy uses | Licence |
 |---|---|---|
-| Controller runs on | Linux, Windows, macOS | Android phone or tablet |
-| Setup | install on a PC | install on a phone |
-| Connection | USB or TCP/IP | TCP ADB, Tailcat, Android 11+ wireless debugging, USB Host |
-| UI toolkit | SDL / native | Jetpack Compose, Material 3, WeUI visual language |
-| Remote navigation | desktop keyboard and mouse | on-screen floating D-pad, back, home, menu, volume, power |
-| Audio, clipboard, HID, recording | yes | not implemented yet |
+| [Genymobile/scrcpy](https://github.com/Genymobile/scrcpy) | The unmodified `scrcpy-server` 5.0.1 binary and the device-side wire protocol | Apache-2.0 |
+| [Ernest-su/ascrcpy](https://github.com/Ernest-su/ascrcpy) | The original Android controller this fork builds on | Apache-2.0 |
+| [Ernest-su/adb](https://github.com/Ernest-su/adb) | The reusable ADB host library (also published on JitPack) | Apache-2.0 |
+| [tailscale/tailcat](https://github.com/tailscale/tailcat) | Tailcat 0.7.0 ARM64/ARMv7/x86_64 binaries for the Tailcat connection mode | BSD-3-Clause |
+| [zxing/zxing](https://github.com/zxing/zxing) | QR code generation for wireless-debugging pairing | Apache-2.0 |
+| [AndroidX / Compose / Material 3](https://developer.android.com/jetpack/compose) | UI toolkit and runtime | Apache-2.0 |
+| [WeUI](https://github.com/Tencent/weui) | Visual language of the floating remote (design reference only) | Own licence |
 
-Two handsets on the same network are enough. It also happens to be the most natural way to control an
-Android TV that has no keyboard and no app store.
+No scrcpy client source code is included: the ADB host, stream and control handling, the decoder and
+the whole Compose UI are independent implementations. Only the server binary and the protocol are
+scrcpy's.
 
 ## Features
 
-- TCP ADB, remote Tailcat connections, Android 11+ wireless debugging pairing (code or QR), and USB Host with a persistent RSA identity.
-- Shell execution, sync push, and multiplexed arbitrary ADB services.
-- Bundled, matching scrcpy-server 5.0.1, started and stopped as part of the session.
-- Mirror options: resolution (short-edge) and bit rate presets, mirroring into a new virtual display
-  with an optional size/DPI and the app to start on it, and turning the target screen off while
-  mirroring (restored on stop).
-- Low-latency H.264 decoding into a `SurfaceView` via `MediaCodec`.
-- Single- and multi-pointer touch forwarding with pressure and correct coordinate mapping.
-- Automatic immersive preview after connecting, cutout- and notch-aware.
-- Draggable floating remote that snaps to an edge; drag it away from the edge and it opens into a
-  full panel. One layout, scaled to fit whatever space is available, so it stays usable in landscape.
-  On the main screen, the remote stays inside the video preview without covering connection actions.
-- Long-press the docked icon to switch between the full-screen preview and the main screen.
-- The expanded panel's top row holds minimize, fullscreen, rotate and power.
-- Open Device management from the connected home screen to run shell commands, view installed apps,
-  and browse remote files. Files and folders can be downloaded to a selected local directory;
-  remote deletion requires confirmation.
-- The app list can clear an app's data or uninstall it for the current device user after confirmation.
-- The app list shows package names and supports disabling or enabling apps for the current device user.
-- Persistent, searchable connection-host history with one-tap deletion.
-- English and Simplified Chinese, including Android 13 per-app language selection.
-- Session state, error reporting, rotation and surface-recreation handling, and clean shutdown.
-
-## Screenshots
-
-The main screen offers TCP ADB, wireless debugging, and USB Host connections and reports every step of the session.
-
-![AScrcpy main screen with the ADB device card](screenshots/main.jpg)
-
-Once connected, the preview takes over the screen full screen, with the floating remote for navigation keys: docked to
-an edge as a small icon, or pulled away from the edge into a full panel as shown below.
-
-![A mirrored Android TV home screen with the floating remote opened into a full panel](screenshots/mirror.jpg)
-
+- TCP ADB, Tailcat and Tailcat wireless pairing, Android 11+ wireless debugging (code or QR), and USB
+  Host connections, with a persistent RSA identity.
+- Bundled scrcpy-server 5.0.1, started and stopped with the session.
+- Mirror options: resolution limited by the **short edge** (original, 1080, 720, 540, 480), bit rate
+  presets (1–32 Mbit/s), screen-off while mirroring, and mirroring into a **virtual display**.
+- Virtual display: optional width/height/DPI and the app to start on it. A virtual display renders
+  nothing until an app is started, so the app is started automatically; pick a package from the
+  installed-app list or type one (blank uses the device launcher).
+- Low-latency H.264 decoding into a `SurfaceView` via `MediaCodec`, single- and multi-pointer touch
+  forwarding with pressure and correct coordinate mapping.
+- Draggable floating remote: drag it away from the edge to open the full panel, drop it near an edge to
+  dock it as a small icon. The panel's top row holds minimize, fullscreen, rotate and power.
+- Device management: shell commands, installed apps (clear data, disable, enable, uninstall) and remote
+  file browsing with download and confirmed deletion.
+- Persistent connection history, English and Simplified Chinese UI including Android 13 per-app
+  language selection.
 
 ## Requirements
 
-- Android 8.0 (API 26) or newer on the **controller**.
-- For TCP ADB, a target reachable at an already-enabled ADB port (often `adb tcpip 5555`).
-- For Tailcat, enable TCP ADB on the target and expose that port with `tailcat serve 5555`. Select Tailcat in AScrcpy, then enter the printed Tailcat address and remote ADB port (default 5555). Treat the address as a credential. The APK includes ARM64, ARMv7 and x86_64 Tailcat clients; other controller ABIs are not supported.
-- For wireless debugging, Android 11+ on the target and both devices on the same reachable Wi-Fi network. Pair using the temporary pairing address/port and six-digit code, then connect using the separate connection port. For QR pairing, show the QR code in AScrcpy and scan it from the target's Wireless debugging settings; the app discovers and connects to the target.
-- For USB, USB Host support on the controller, USB debugging on the target, a compatible cable, and approval of USB access and RSA authorization prompts.
-- Legacy TCP ADB is plaintext; use it on a trusted network.
+- **Controller**: Android 8.0 (API 26) or newer.
+- **Target**: a reachable ADB endpoint — `adb tcpip 5555`, Tailcat, wireless debugging, or USB.
+- Virtual display requires **Android 10 (API 29)** or newer on the target. On Android 10–12 the
+  virtual display has no system decorations, so the started app provides the whole picture.
+- Legacy TCP ADB is plaintext; use it only on a trusted network.
+
+## Usage
+
+1. Install AScrcpy on the controller.
+2. Pick a connection method and connect. For wireless pairing, enter the temporary pairing endpoint
+   and code; the app then finds and connects to the separate debugging port. Paired devices are saved
+   by GUID and can be reconnected without a new code.
+3. Tap **Start mirroring**. The preview opens full screen automatically.
+4. Use the preview for touch input and the floating remote for navigation keys, rotate and power.
+   Long-press the docked icon to switch between the full-screen preview and the main screen.
+5. Open **Device management** from the main screen for shell, app and file actions.
+
+Mirror options take effect when mirroring starts; stop and restart the session to apply a change.
+The installed-app list used by the virtual display can only be read while mirroring is stopped, because
+shell commands must not run in the middle of a session.
 
 ## Build
 
@@ -111,135 +81,49 @@ an edge as a small icon, or pulled away from the edge into a full panel as shown
 ./gradlew :scrcpy:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
 ```
 
-Requires JDK 17. Install on a connected device with the Android CLI:
+Requires JDK 17. Install with the Android CLI:
 
 ```shell
 android run --device=<serial> --activity=ernest.ascrcpy.MainActivity \
   --apks=app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Run the instrumented tests on a connected device:
+Instrumented tests need a device and stay out of CI:
 
 ```shell
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-## Usage
+### Versions and CI
 
-1. Install AScrcpy on the controller phone.
-2. Select TCP, Tailcat, wireless pairing code, wireless QR, or USB Host. For wireless code, enter the temporary pairing endpoint and code; after pairing, AScrcpy discovers the separate connection endpoint and connects automatically. Paired devices are saved by GUID with their reported model name and route address. On a later launch, select a device from the paired-device list and press **Connect saved device**; AScrcpy never reconnects merely because it was opened. An explicitly entered Tailscale address is retained to keep that route; ordinary Wi-Fi pairing uses the address resolved by the matching NSD service. If mDNS discovery or automatic connection fails, enter or confirm the connection port and tap **Connect**. Use **Pair a different device** to add another device. For QR, scan the displayed code on the target. For USB, approve both permission prompts.
-3. For TCP, enter the target address and port; for Tailcat, enter the shared address and remote ADB port. Tap **Connect**. The app remembers TCP hosts, but does not save Tailcat addresses.
-4. Tap **Test shell** to confirm the connection, then **Start mirroring**. The preview opens
-   full screen automatically.
-5. Use the preview for touch input and the floating remote for navigation keys. Drag the remote
-   anywhere; drop it against a left or right edge to collapse it back to a small icon.
+Every push to `main` builds and tests through GitHub Actions; the debug APK is uploaded as a build
+artifact. Version numbers follow `MAJOR.MINOR.PATCH` with `versionCode = MAJOR*10000 + MINOR*100 + PATCH`.
+Local builds use `1.4.0` (10400); CI stamps `1.4.<run number>` so each artifact is identifiable.
 
-## Modules and dependencies
+The debug keystore is cached between runs, which keeps the debug APK signature stable, so a newer
+build installs over the previous one instead of requiring an uninstall. Release builds need the four
+signing secrets described in [docs/releasing.md](docs/releasing.md); pushing a `vX.Y.Z` tag publishes
+a signed APK as a GitHub release.
+
+## Modules
 
 | Module | Contents |
 |---|---|
 | `app` | Compose controller UI, Android lifecycle, assets, dependency wiring |
-| [`adb`](https://github.com/Ernest-su/adb) | reusable ADB host library published through JitPack; its public API never exposes the TCP implementation |
+| `adb` | reusable ADB host library (external, see above); its public API never exposes the TCP implementation |
 | `scrcpy` | scrcpy server lifecycle, stream protocol, `MediaCodec` decoder, control messages |
 
 Allowed dependency direction is `app -> scrcpy -> adb`, plus `app -> adb` for direct connection and
-diagnostics. All project-owned packages start with `ernest.ascrcpy`; the ADB namespace is
-`ernest.ascrcpy.adb`.
+diagnostics. All project-owned packages start with `ernest.ascrcpy`.
 
-Further reading: [docs/architecture.md](docs/architecture.md) for module boundaries and protocol
-flows, [docs/design-system.md](docs/design-system.md) for the mandatory UI constraints, and
-[AGENTS.md](AGENTS.md) for repository development rules.
+## Known limitations
 
-## Using the ADB library
-
-The [standalone `adb` library](https://github.com/Ernest-su/adb) is usable for tooling, diagnostics, or any Android app that needs a
-dependency-light ADB host implementation. Add `maven { url = uri("https://jitpack.io") }` to `dependencyResolutionManagement.repositories` first.
-
-```kotlin
-dependencies {
-    implementation("com.github.Ernest-su:adb:v0.2.1")
-}
-```
-
-Consume only the stable facade:
-
-```kotlin
-val client = DefaultAdbClient.factory(context).create()
-val device = client.connect(AdbEndpoint("192.168.1.20", 5555))
-val result = client.shell("getprop ro.product.model")
-client.push(inputStream, "/data/local/tmp/tool.jar")
-val channel = client.open("localabstract:my_service")
-```
-
-`AdbClient`, `AdbChannel`, `AdbKeyProvider`, `AdbTransport`, and their factories are all interfaces.
-The library provides USB Host and wireless TLS implementations behind `AdbClient`; a third-party ADB library can implement the facade without changing `scrcpy`.
-
-## Roadmap
-
-Not implemented yet, and all of them are designed to fit the existing module boundaries:
-
-- Broader wireless discovery and device selection.
-- Multiple USB device selection and attach/detach handling.
-- Audio forwarding and `AudioTrack` playback.
-- Clipboard and device-message receive loop.
-- Keyboard, gamepad, and richer control messages.
-- Foreground service so a session survives UI recreation.
-
-## Contributing
-
-Issues and pull requests are welcome, especially for the extension points above - each one is scoped
-to a single module and behind an existing interface.
-
-Before opening a pull request, please run:
-
-```shell
-./gradlew :scrcpy:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
-./gradlew :app:connectedDebugAndroidTest    # with a device connected
-```
-
-Please read [AGENTS.md](AGENTS.md) first: it documents the naming conventions, module boundaries,
-protocol rules, and change discipline this repository expects.
-
-Maintainers: [docs/releasing.md](docs/releasing.md) is the runbook for cutting a release. Pushing a
-`v1.2.3` tag publishes a signed APK as a GitHub release automatically.
-
-## Verified devices
-
-- **Controller**: OnePlus `PJE110`, Android 16 - install, launch, and the Compose instrumented suite
-  including the host field and floating-remote behaviour.
-- **Target**: `KONKA Android TV KKAML966D5`, Android 14 - ADB connect and authorize, shell, server
-  upload and start, and the H.264 encode/decode pipeline at `1920 × 1072`.
-
-Testing a device against itself can produce a black or recursive preview even when the pipeline is
-healthy, so prefer two devices when validating frame contents and touch accuracy.
+- Audio, clipboard, HID input and recording are not implemented.
+- No foreground service, so a session is not guaranteed to survive backgrounding or UI recreation.
+- H.264 over the ADB tunnel has no pacing: after a network or decoder stall the buffered frames are
+  played back quickly, which looks like fast-forwarding. Lowering the bit rate or resolution helps.
 
 ## License
 
-Copyright 2026 Ernest-su and AScrcpy contributors.
-
-Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full text and
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the bundled scrcpy server.
-
-### Tailcat wireless pairing
-
-On an Android 11+ target, enable Developer options and Wireless debugging, then open **Pair device with pairing code**. Keep that dialog open. Share both current remote ports in one listener:
-
-```shell
-tailcat --key=new serve PAIRING_PORT CONNECTION_PORT
-```
-
-In the controller select **Tailcat wireless pairing** and enter the printed Tailcat address, the target's pairing port, its separate TLS connection port, and the current six-digit code. Tap **Pair and connect**. The app forwards both ports to randomly allocated loopback ports, pairs using its persistent ADB identity, connects over TLS, and starts mirroring. These fields take target ports, not the loopback ports shown by a desktop forwarder. No mDNS discovery is required or forwarded.
-
-After successful pairing the code is cleared. **Connect paired device** forwards only the current connection port and reuses the stored ADB identity; no new code is needed while the target still trusts that identity. Addresses and codes are not saved or logged. Changing Wi-Fi or restarting wireless debugging may change ports; restarting Tailcat may change its address. Request fresh values and retry. Disconnecting stops the tunnel; it does not disable wireless debugging or revoke trust on the target. Forget the controller in target Settings to revoke it.
-
-The APK includes Tailcat 0.7.0 for ARM64, ARMv7 and x86_64. Android 8/9 controllers may encounter upstream Android DNS protocol incompatibility during Tailcat bootstrap; use a compatible Tailcat build or a newer controller OS. This mode requires an already enabled, authorized target and working Tailcat networking; it does not enable target settings. Background continuity is not guaranteed without a foreground service. Emulator checks do not establish physical-device compatibility.
-
-The optional `TailcatWirelessDeviceTest` exercises a real target, including pairing, TLS connection, shell, streaming, HOME control, server shutdown and reconnect without a code. The normal Gradle device suite skips it unless live input is provisioned. After building and installing both debug APKs, place a private JSON object containing `address`, `pairing_port`, `connect_port` and `pairing_code` at the controller app's `files/tailcat-device-check.json` using `adb shell run-as ernest.ascrcpy`; then run:
-
-```shell
-adb -s CONTROLLER shell am instrument -w -r \
-  -e class ernest.ascrcpy.ui.main.TailcatWirelessDeviceTest \
-  ernest.ascrcpy.test/androidx.test.runner.AndroidJUnitRunner
-```
-
-The test deletes the input after reading it. Provision it after installation, because Gradle device tests may clear app data. Use a second target, keep its current pairing dialog open, and keep credentials out of command arguments, tracked files and test logs. The controller log tag `TailcatSession` contains a short SHA-256 route fingerprint and remote/local ports; `TailcatDeviceTest` reports verified phases and streaming dimensions.
+Copyright 2026 Ernest-su and AScrcpy contributors. Released under the Apache License 2.0; see
+[LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

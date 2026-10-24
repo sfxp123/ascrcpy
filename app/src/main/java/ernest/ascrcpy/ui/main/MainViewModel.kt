@@ -19,6 +19,8 @@ import ernest.ascrcpy.scrcpy.ScrcpyClient
 import ernest.ascrcpy.scrcpy.ScrcpyConfig
 import ernest.ascrcpy.scrcpy.ScrcpyState
 import ernest.ascrcpy.scrcpy.VirtualDisplay
+import ernest.ascrcpy.ui.device.AppInfo
+import ernest.ascrcpy.ui.device.DeviceManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -78,6 +80,8 @@ data class MainUiState(
   val virtualDisplayHeight: String = "",
   val virtualDisplayDpi: String = "",
   val virtualDisplayApp: String = "",
+  val installedApps: List<AppInfo> = emptyList(),
+  val loadingApps: Boolean = false,
   val turnScreenOff: Boolean = false,
 ) {
   val connected: Boolean get() = connectionState is AdbConnectionState.Connected
@@ -189,6 +193,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val name = value.trim().take(64)
     preferences.edit().putString(VIRTUAL_DISPLAY_APP_KEY, name).apply()
     form.update { copy(virtualDisplayApp = name) }
+  }
+
+  /** Reads the installed apps so the start-app field can be filled from a list instead of typed. */
+  fun loadInstalledApps() {
+    if (form.value.loadingApps) return
+    form.update { copy(loadingApps = true) }
+    viewModelScope.launch {
+      val apps = runCatching { DeviceManager(getApplication<Application>(), client).applications() }
+        .getOrElse { emptyList() }
+      form.update { copy(loadingApps = false, installedApps = apps) }
+    }
   }
 
   /** Rotates the mirrored display, like scrcpy's rotate shortcut. */
