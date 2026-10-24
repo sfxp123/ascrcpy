@@ -198,10 +198,12 @@ internal fun MainScreen(
       onMethodChange, onPairingHostChange, onPairingPortChange, onPairingCodeChange, onPair, onStartQr, onConnectUsb,
       onTailcatAddressChange, onPrepareWirelessPairing, onReconnectSavedWireless, onSelectSavedWireless,
       onSelectConnectionHistory, onDeleteConnectionHistory,
-      onVideoMaxSizeChange, onVirtualDisplayEnabledChange, onVirtualDisplayWidthChange,
-      onVirtualDisplayHeightChange, onVirtualDisplayDpiChange, onTurnScreenOffChange,
+      onVideoMaxSizeChange, onVideoBitRateChange, onVirtualDisplayEnabledChange, onVirtualDisplayWidthChange,
+      onVirtualDisplayHeightChange, onVirtualDisplayDpiChange, onVirtualDisplayAppChange, onTurnScreenOffChange,
       onOpenDevice = { fullscreen = false; managingDevice = true },
-      previewControls = { FloatingRemote(onKey, { fullscreen = true }, remoteState, Modifier.fillMaxSize()) })
+      previewControls = {
+        FloatingRemote(onKey, { fullscreen = true }, onRotateDevice, remoteState, Modifier.fillMaxSize())
+      })
   }
   val payload = state.qrPayload
   if (payload != null) {
@@ -249,10 +251,12 @@ private fun NormalScreen(
   onSelectConnectionHistory: (String) -> Unit,
   onDeleteConnectionHistory: (String) -> Unit,
   onVideoMaxSizeChange: (Int) -> Unit,
+  onVideoBitRateChange: (Int) -> Unit,
   onVirtualDisplayEnabledChange: (Boolean) -> Unit,
   onVirtualDisplayWidthChange: (String) -> Unit,
   onVirtualDisplayHeightChange: (String) -> Unit,
   onVirtualDisplayDpiChange: (String) -> Unit,
+  onVirtualDisplayAppChange: (String) -> Unit,
   onTurnScreenOffChange: (Boolean) -> Unit,
   onOpenDevice: () -> Unit,
   previewControls: @Composable () -> Unit,
