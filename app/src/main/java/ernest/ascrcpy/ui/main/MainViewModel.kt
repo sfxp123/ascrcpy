@@ -227,7 +227,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       val raw = line.removePrefix("package:")
       val split = raw.lastIndexOf('=')
       if (split <= 0) null else raw.substring(split + 1).trim() to raw.substring(0, split)
-    }
+    }.toList()
     packages.map { (pkg, apk) ->
       AppInfo(pkg, "—", "—",
         listOf("/system/", "/system_ext/", "/product/", "/vendor/", "/odm/").any { apk.startsWith(it) },
