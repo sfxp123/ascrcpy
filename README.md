@@ -64,10 +64,9 @@ Android TV that has no keyboard and no app store.
 - TCP ADB, remote Tailcat connections, Android 11+ wireless debugging pairing (code or QR), and USB Host with a persistent RSA identity.
 - Shell execution, sync push, and multiplexed arbitrary ADB services.
 - Bundled, matching scrcpy-server 5.0.1, started and stopped as part of the session.
-- Mirror options: resolution (short-edge) presets, mirroring into a new virtual display with an
-  optional size/DPI (its home screen is launched automatically), and turning the target screen off
-  while mirroring (restored on stop).
-- Always-visible back / home / recents bar while mirroring, with a toggle for the floating remote.
+- Mirror options: resolution (short-edge) and bit rate presets, mirroring into a new virtual display
+  with an optional size/DPI and the app to start on it, and turning the target screen off while
+  mirroring (restored on stop).
 - Low-latency H.264 decoding into a `SurfaceView` via `MediaCodec`.
 - Single- and multi-pointer touch forwarding with pressure and correct coordinate mapping.
 - Automatic immersive preview after connecting, cutout- and notch-aware.
@@ -75,7 +74,7 @@ Android TV that has no keyboard and no app store.
   full panel. One layout, scaled to fit whatever space is available, so it stays usable in landscape.
   On the main screen, the remote stays inside the video preview without covering connection actions.
 - Long-press the docked icon to switch between the full-screen preview and the main screen.
-- Use the expanded remote's top-left button for the same full-screen switch.
+- The expanded panel's top row holds minimize, fullscreen, rotate and power.
 - Open Device management from the connected home screen to run shell commands, view installed apps,
   and browse remote files. Files and folders can be downloaded to a selected local directory;
   remote deletion requires confirmation.

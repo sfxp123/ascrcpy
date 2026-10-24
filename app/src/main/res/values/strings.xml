@@ -67,8 +67,6 @@
     <string name="back">Back</string>
     <string name="home">Home</string>
     <string name="menu">Menu</string>
-    <string name="nav_recents">Recents</string>
-    <string name="toggle_remote_control">Show or hide the floating remote</string>
     <string name="scrcpy_ready">Ready</string>
     <string name="scrcpy_installing">Installing server…</string>
     <string name="scrcpy_starting">Starting server…</string>
@@ -163,13 +161,20 @@
     <string name="mirror_options">Mirror options</string>
     <string name="mirror_options_pending">Resolution and virtual display changes apply the next time mirroring starts; stop and start mirroring to use them now.</string>
     <string name="mirror_resolution">Resolution (short edge)</string>
+    <string name="mirror_bit_rate">Bit rate</string>
     <string name="resolution_original">Original</string>
     <string name="virtual_display">Virtual display</string>
-    <string name="virtual_display_description">Mirror a new virtual display instead of the device screen. Its home screen is launched automatically.</string>
+    <string name="virtual_display_description">Mirror a new virtual display instead of the device screen. A virtual display shows nothing until an app is started on it.</string>
     <string name="virtual_display_width">Width</string>
     <string name="virtual_display_height">Height</string>
     <string name="virtual_display_dpi">DPI</string>
+    <string name="virtual_display_app">App to start</string>
+    <string name="virtual_display_app_hint">Package name, e.g. com.android.settings (blank = device launcher)</string>
     <string name="turn_screen_off">Screen off while mirroring</string>
     <string name="turn_screen_off_description">Turn the target display off during mirroring and restore it on stop.</string>
     <string name="log_invalid_virtual_display_size">Invalid virtual display size. Enter width and height together, or leave all three fields blank to use the device size.</string>
+    <string name="log_virtual_display_requires_android_10">Virtual display requires Android 10 or higher on the target device.</string>
+    <string name="log_virtual_display_no_app">Could not resolve the app to start on the virtual display. Enter its package name, or check the device launcher.</string>
+    <string name="minimize_remote">Minimize remote</string>
+    <string name="rotate_screen">Rotate screen</string>
 </resources>

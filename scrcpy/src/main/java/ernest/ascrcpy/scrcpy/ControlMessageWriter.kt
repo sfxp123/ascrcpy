@@ -45,6 +45,11 @@ class ControlMessageWriter(private val channel: AdbChannel) {
         channel.write(byteArrayOf(TYPE_SET_DISPLAY_POWER, if (on) 1 else 0))
     }
 
+    /** scrcpy `TYPE_ROTATE_DEVICE`: rotates the mirrored display between portrait and landscape. */
+    suspend fun rotateDevice() {
+        channel.write(byteArrayOf(TYPE_ROTATE_DEVICE))
+    }
+
     /**
      * scrcpy `TYPE_START_APP`: starts an app on the mirrored display. A virtual display renders
      * nothing until something is started on it, so this is what makes it show content.
@@ -59,6 +64,7 @@ class ControlMessageWriter(private val channel: AdbChannel) {
         const val TYPE_INJECT_KEYCODE: Byte = 0
         const val TYPE_INJECT_TOUCH: Byte = 2
         const val TYPE_SET_DISPLAY_POWER: Byte = 10
+        const val TYPE_ROTATE_DEVICE: Byte = 11
         const val TYPE_START_APP: Byte = 16
     }
 }

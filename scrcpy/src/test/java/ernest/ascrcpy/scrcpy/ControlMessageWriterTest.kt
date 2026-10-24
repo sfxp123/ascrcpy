@@ -15,6 +15,13 @@ class ControlMessageWriterTest {
         assertArrayEquals(byteArrayOf(10, 0, 10, 1), out.toByteArray())
     }
 
+    @Test fun serializesRotateDeviceAsASingleTypeByte(): Unit = runBlocking {
+        val out = ByteArrayOutputStream()
+        val writer = ControlMessageWriter(capturing(out))
+        writer.rotateDevice()
+        assertArrayEquals(byteArrayOf(11), out.toByteArray())
+    }
+
     @Test fun serializesStartAppAsTypeLengthAndUtf8Name(): Unit = runBlocking {
         val out = ByteArrayOutputStream()
         val writer = ControlMessageWriter(capturing(out))

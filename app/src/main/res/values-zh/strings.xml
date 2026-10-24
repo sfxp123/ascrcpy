@@ -67,8 +67,6 @@
     <string name="back">返回</string>
     <string name="home">主屏幕</string>
     <string name="menu">菜单</string>
-    <string name="nav_recents">最近任务</string>
-    <string name="toggle_remote_control">显示或隐藏悬浮遥控器</string>
     <string name="scrcpy_ready">就绪</string>
     <string name="scrcpy_installing">正在安装服务端…</string>
     <string name="scrcpy_starting">正在启动服务端…</string>
@@ -163,13 +161,20 @@
     <string name="mirror_options">投屏选项</string>
     <string name="mirror_options_pending">分辨率与虚拟屏的修改将在下次开始投屏时生效；如需立刻生效，请停止后重新开始投屏。</string>
     <string name="mirror_resolution">分辨率（短边）</string>
+    <string name="mirror_bit_rate">码率</string>
     <string name="resolution_original">原始</string>
     <string name="virtual_display">虚拟屏</string>
-    <string name="virtual_display_description">镜像新建的虚拟显示屏，而非设备主屏幕；会自动启动设备桌面。</string>
+    <string name="virtual_display_description">镜像新建的虚拟显示屏，而非设备主屏幕；虚拟屏在启动应用前不会显示内容。</string>
     <string name="virtual_display_width">宽</string>
     <string name="virtual_display_height">高</string>
     <string name="virtual_display_dpi">DPI</string>
+    <string name="virtual_display_app">启动应用</string>
+    <string name="virtual_display_app_hint">包名，如 com.android.settings（留空则启动设备桌面）</string>
     <string name="turn_screen_off">息屏运行</string>
     <string name="turn_screen_off_description">投屏期间关闭目标设备屏幕，停止投屏时恢复。</string>
     <string name="log_invalid_virtual_display_size">虚拟屏尺寸无效。请同时填写宽和高，或三项都留空以使用设备尺寸。</string>
+    <string name="log_virtual_display_requires_android_10">虚拟屏需要目标设备为 Android 10 及以上。</string>
+    <string name="log_virtual_display_no_app">无法确定虚拟屏要启动的应用。请填写应用包名，或检查设备的桌面应用。</string>
+    <string name="minimize_remote">最小化遥控器</string>
+    <string name="rotate_screen">旋转屏幕</string>
 </resources>

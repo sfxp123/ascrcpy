@@ -122,6 +122,11 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
         screenOffApplied = !on
     }
 
+    /** Sends scrcpy `TYPE_ROTATE_DEVICE`, rotating the mirrored display. */
+    suspend fun rotateDevice() {
+        controller?.rotateDevice()
+    }
+
     /** Starts [name] on the mirrored display, so a virtual display produces content. */
     suspend fun startApp(name: String) {
         controller?.startApp(name)

@@ -72,10 +72,12 @@ data class MainUiState(
   val busy: Boolean = false,
   val scrcpyState: ScrcpyState = ScrcpyState.Idle,
   val videoMaxSize: Int = 720,
+  val videoBitRate: Int = 8_000_000,
   val virtualDisplayEnabled: Boolean = false,
   val virtualDisplayWidth: String = "",
   val virtualDisplayHeight: String = "",
   val virtualDisplayDpi: String = "",
+  val virtualDisplayApp: String = "",
   val turnScreenOff: Boolean = false,
 ) {
   val connected: Boolean get() = connectionState is AdbConnectionState.Connected
@@ -103,10 +105,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     connectionHistory = connectionHistory,
     savedWirelessDevices = savedWirelessDevices,
     videoMaxSize = preferences.getInt(VIDEO_MAX_SIZE_KEY, 720),
+    videoBitRate = preferences.getInt(VIDEO_BIT_RATE_KEY, 8_000_000),
     virtualDisplayEnabled = preferences.getBoolean(VIRTUAL_DISPLAY_ENABLED_KEY, false),
     virtualDisplayWidth = preferences.getString(VIRTUAL_DISPLAY_WIDTH_KEY, "") ?: "",
     virtualDisplayHeight = preferences.getString(VIRTUAL_DISPLAY_HEIGHT_KEY, "") ?: "",
     virtualDisplayDpi = preferences.getString(VIRTUAL_DISPLAY_DPI_KEY, "") ?: "",
+    virtualDisplayApp = preferences.getString(VIRTUAL_DISPLAY_APP_KEY, "") ?: "",
     turnScreenOff = preferences.getBoolean(TURN_SCREEN_OFF_KEY, false),
   ))
   private var surface: Surface? = null
@@ -152,6 +156,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     form.update { copy(videoMaxSize = value) }
   }
 
+  fun setVideoBitRate(value: Int) {
+    preferences.edit().putInt(VIDEO_BIT_RATE_KEY, value).apply()
+    form.update { copy(videoBitRate = value) }
+  }
+
   fun setVirtualDisplayEnabled(value: Boolean) {
     preferences.edit().putBoolean(VIRTUAL_DISPLAY_ENABLED_KEY, value).apply()
     form.update { copy(virtualDisplayEnabled = value) }
@@ -173,6 +182,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val digits = value.filter(Char::isDigit).take(4)
     preferences.edit().putString(VIRTUAL_DISPLAY_DPI_KEY, digits).apply()
     form.update { copy(virtualDisplayDpi = digits) }
+  }
+
+  /** Package (or `+`/`?` prefixed name) started on the virtual display; blank means the launcher. */
+  fun setVirtualDisplayApp(value: String) {
+    val name = value.trim().take(64)
+    preferences.edit().putString(VIRTUAL_DISPLAY_APP_KEY, name).apply()
+    form.update { copy(virtualDisplayApp = name) }
+  }
+
+  /** Rotates the mirrored display, like scrcpy's rotate shortcut. */
+  fun rotateDevice() {
+    viewModelScope.launch { scrcpy.rotateDevice() }
   }
 
   fun setTurnScreenOff(value: Boolean) {
@@ -701,24 +722,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val long = maxOf(display.width, display.height)
         if (short > 0) long.toFloat() / short else null
       } ?: deviceLongestShortestRatio()
+      // scrcpy rejects new_display below Android 10, so fail with a message instead of a black screen.
+      if (virtualDisplay != null && (deviceSdk() ?: Int.MAX_VALUE) < 29) {
+        form.update { copy(console = string(R.string.log_virtual_display_requires_android_10)) }
+        return@launch
+      }
       val config = ScrcpyConfig(
         maxSize = maxSizeForShortEdge(snapshot.videoMaxSize, aspect ?: DEFAULT_PHONE_ASPECT),
+        videoBitRate = snapshot.videoBitRate,
         virtualDisplay = virtualDisplay,
         turnScreenOff = snapshot.turnScreenOff,
       )
       form.update { copy(busy = true, console = string(R.string.log_starting_scrcpy)) }
-      // Resolve the launcher before the session starts: shell commands must not run mid-mirror.
-      val launcher = if (virtualDisplay != null) launcherPackage() else null
+      // Resolve the app to start before the session starts: shell commands must not run mid-mirror.
+      val startApp = if (virtualDisplay == null) null
+        else snapshot.virtualDisplayApp.ifBlank { launcherPackage() ?: "" }
+          .ifBlank { null }
+      if (virtualDisplay != null && startApp == null) {
+        form.update { copy(busy = false, console = string(R.string.log_virtual_display_no_app)) }
+        return@launch
+      }
       runCatching {
         getApplication<Application>().assets.open("scrcpy-server-v5.0.1").use { server ->
           scrcpy.start(server, output, config)
         }
-        // A virtual display stays black until something is started on it.
-        if (launcher != null) scrcpy.startApp(launcher)
+        // A virtual display shows nothing (black or a bare wallpaper) until an app is started on it.
+        if (startApp != null) scrcpy.startApp(startApp)
       }.onFailure { error -> form.update { copy(console = error.stackTraceToString()) } }
       form.update { copy(busy = false) }
     }
   }
+
+  /** SDK level of the connected device, used to reject options the bundled server cannot honor. */
+  private suspend fun deviceSdk(): Int? =
+    runCatching { client.shell("getprop ro.build.version.sdk").text() }.getOrNull()?.trim()?.toIntOrNull()
 
   /** Longest/shortest ratio of the device display, used to turn a short-edge target into max_size. */
   private suspend fun deviceLongestShortestRatio(): Float? {
@@ -867,10 +904,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       ConnectionMethod.TAILCAT_WIRELESS)
     const val SURFACE_SETTLE_DELAY_MILLIS = 300L
     const val VIDEO_MAX_SIZE_KEY = "video_max_size_v1"
+    const val VIDEO_BIT_RATE_KEY = "video_bit_rate_v1"
     const val VIRTUAL_DISPLAY_ENABLED_KEY = "virtual_display_enabled_v1"
     const val VIRTUAL_DISPLAY_WIDTH_KEY = "virtual_display_width_v2"
     const val VIRTUAL_DISPLAY_HEIGHT_KEY = "virtual_display_height_v2"
     const val VIRTUAL_DISPLAY_DPI_KEY = "virtual_display_dpi_v2"
+    const val VIRTUAL_DISPLAY_APP_KEY = "virtual_display_app_v1"
     const val TURN_SCREEN_OFF_KEY = "turn_screen_off_v1"
   }
 }
