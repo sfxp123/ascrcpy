@@ -185,6 +185,5 @@
     <string name="log_virtual_display_requires_android_10">Virtual display requires Android 10 or higher on the target device.</string>
     <string name="log_virtual_display_no_app">Could not resolve the app to start on the virtual display. Enter its package name, or check the device launcher.</string>
     <string name="minimize_remote">Minimize remote</string>
-    <string name="rotate_screen">Rotate screen</string>
-    <string name="log_rotate_failed">Could not rotate the screen: %1$s</string>
+    <string name="rotate_screen">Switch orientation</string>
 </resources>

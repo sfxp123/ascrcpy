@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.usb.UsbDevice
@@ -119,6 +120,16 @@ fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE))
     }
   }
+  // The rotate key switches this app's own orientation, so landscape content fills the whole
+  // screen. The manifest handles the configuration change, so the mirror session survives it.
+  val activity = remember(context) { context.findActivity() }
+  var landscape by rememberSaveable { mutableStateOf(false) }
+  LaunchedEffect(landscape, activity) {
+    activity?.requestedOrientation =
+      if (landscape) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+      else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+  }
+  val toggleOrientation = { landscape = !landscape }
   MainScreen(state, viewModel::setHost, viewModel::setPort, viewModel::connect,
     viewModel::disconnect, {}, viewModel::startMirroring,
     viewModel::stopMirroring, viewModel::attachSurface, viewModel::detachSurface, viewModel::injectTouch,
@@ -131,7 +142,7 @@ fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     viewModel::setVideoMaxSize, viewModel::setVideoBitRate, viewModel::setVirtualDisplayEnabled,
     viewModel::setVirtualDisplayWidth, viewModel::setVirtualDisplayHeight,
     viewModel::setVirtualDisplayDpi, viewModel::setVirtualDisplayApp, viewModel::loadInstalledApps,
-    viewModel::setTurnScreenOff, viewModel::rotateDevice)
+    viewModel::setTurnScreenOff, toggleOrientation)
 }
 
 @Composable
@@ -174,7 +185,7 @@ internal fun MainScreen(
   onVirtualDisplayAppChange: (String) -> Unit = {},
   onLoadInstalledApps: () -> Unit = {},
   onTurnScreenOffChange: (Boolean) -> Unit = {},
-  onRotateDevice: () -> Unit = {},
+  onToggleOrientation: () -> Unit = {},
 ) {
   var fullscreen by remember(state.connected) { mutableStateOf(state.connected) }
   var managingDevice by rememberSaveable { mutableStateOf(false) }
@@ -193,7 +204,7 @@ internal fun MainScreen(
   if (state.connected && fullscreen) {
     Box(modifier.fillMaxSize().background(Color.Black)) {
       AspectRatioRemoteSurface(videoSize, onSurfaceCreated, onSurfaceDestroyed, onTouch, Modifier.fillMaxSize())
-      FloatingRemote(onKey, { fullscreen = false }, onRotateDevice, remoteState, Modifier.fillMaxSize())
+      FloatingRemote(onKey, { fullscreen = false }, onToggleOrientation, remoteState, Modifier.fillMaxSize())
     }
   } else {
     NormalScreen(state, videoSize, onHostChange, onPortChange, onConnect, onDisconnect,
@@ -206,7 +217,7 @@ internal fun MainScreen(
       onLoadInstalledApps, onTurnScreenOffChange,
       onOpenDevice = { fullscreen = false; managingDevice = true },
       previewControls = {
-        FloatingRemote(onKey, { fullscreen = true }, onRotateDevice, remoteState, Modifier.fillMaxSize())
+        FloatingRemote(onKey, { fullscreen = true }, onToggleOrientation, remoteState, Modifier.fillMaxSize())
       })
   }
   val payload = state.qrPayload
@@ -560,8 +571,9 @@ private fun StartAppPicker(
     if (state.installedApps.isEmpty() && !state.loadingApps && state.connected) onRetry()
   }
   val apps = remember(state.installedApps, query, showSystem) {
+    val text = query.trim()
     state.installedApps.filter { (showSystem || !it.system) &&
-      it.packageName.contains(query.trim(), ignoreCase = true) }
+      (it.label.contains(text, ignoreCase = true) || it.packageName.contains(text, ignoreCase = true)) }
   }
   AlertDialog(onDismissRequest = onDismiss,
     title = { Text(stringResource(R.string.virtual_display_app_picker_title)) },
@@ -586,9 +598,14 @@ private fun StartAppPicker(
             color = MaterialTheme.colorScheme.onSurfaceVariant)
           else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
             items(apps, key = { it.packageName }) { app ->
-              Text(app.packageName, Modifier.fillMaxWidth()
-                .clickable { onPick(app.packageName) }.padding(vertical = 12.dp),
-                style = MaterialTheme.typography.bodyMedium)
+              Column(Modifier.fillMaxWidth()
+                .clickable { onPick(app.packageName) }.padding(vertical = 10.dp)) {
+                Text(app.label, style = MaterialTheme.typography.bodyMedium)
+                if (app.label != app.packageName) {
+                  Text(app.packageName, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+              }
             }
           }
         }

@@ -185,6 +185,5 @@
     <string name="log_virtual_display_requires_android_10">虚拟屏需要目标设备为 Android 10 及以上。</string>
     <string name="log_virtual_display_no_app">无法确定虚拟屏要启动的应用。请填写应用包名，或检查设备的桌面应用。</string>
     <string name="minimize_remote">最小化遥控器</string>
-    <string name="rotate_screen">旋转屏幕</string>
-    <string name="log_rotate_failed">旋转屏幕失败：%1$s</string>
+    <string name="rotate_screen">切换横竖屏</string>
 </resources>

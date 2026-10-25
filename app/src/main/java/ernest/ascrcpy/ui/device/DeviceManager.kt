@@ -16,7 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 data class AppInfo(val packageName: String, val versionName: String, val versionCode: String,
-    val system: Boolean, val enabled: Boolean = true)
+    val system: Boolean, val enabled: Boolean = true, val label: String = packageName)
 enum class AppAction { CLEAR_DATA, DISABLE, ENABLE, UNINSTALL }
 data class RemoteFile(val name: String, val path: String, val mode: Int, val size: Long, val modifiedSeconds: Long) {
     val directory: Boolean get() = mode and 0xF000 == 0x4000

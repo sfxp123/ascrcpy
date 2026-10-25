@@ -206,6 +206,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       try {
         val apps = withTimeout(APP_LIST_TIMEOUT_MILLIS) { readInstalledApps() }
         form.update { copy(loadingApps = false, installedApps = apps) }
+        // Labels need an APK parser on the target, so they load after the list is already usable.
+        val labels = try {
+          withTimeoutOrNull(APP_LABEL_TIMEOUT_MILLIS) { readAppLabels() }.orEmpty()
+        } catch (error: CancellationException) {
+          throw error
+        } catch (error: Exception) {
+          emptyMap<String, String>()
+        }
+        if (labels.isNotEmpty()) {
+          form.update { copy(installedApps = installedApps.map { app ->
+            labels[app.packageName]?.let { app.copy(label = it) } ?: app
+          }) }
+        }
       } catch (error: CancellationException) {
         form.update { copy(loadingApps = false) }
         throw error
@@ -235,6 +248,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }.distinctBy { it.packageName }.sortedBy { it.packageName.lowercase() }
   }
 
+  /**
+   * Reads each app's display name by running `aapt dump badging` on its APK inside the target.
+   *
+   * Only some devices ship `aapt`; the script exits before printing anything when it is missing,
+   * so the picker keeps package names in that case.
+   */
+  private suspend fun readAppLabels(): Map<String, String> = withContext(Dispatchers.IO) {
+    val script = "command -v aapt >/dev/null 2>&1 || exit 3; " +
+      "for p in \$(pm list packages -f); do " +
+      "apk=\${p%=*}; apk=\${apk#package:}; pkg=\${p##*=}; " +
+      "label=\$(aapt dump badging \"\$apk\" 2>/dev/null | " +
+      "sed -n \"s/^application-label:'\\(.*\\)'\$/\\1/p\" | head -n 1); " +
+      "echo \"\$pkg|\$label\"; done"
+    shellText(script).lineSequence().mapNotNull { line ->
+      val separator = line.indexOf('|')
+      if (separator <= 0) null
+      else line.substring(0, separator).trim() to line.substring(separator + 1).trim()
+    }.filter { it.second.isNotBlank() }.toMap()
+  }
+
   /** Runs a shell command on a private channel and returns everything it printed. */
   private suspend fun shellText(command: String): String = withContext(Dispatchers.IO) {
     val channel = client.open("shell:$command")
@@ -250,42 +283,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     } finally {
       runCatching { channel.close() }
     }
-  }
-
-  /**
-   * Rotates the target's screen by 90 degrees.
-   *
-   * scrcpy's `TYPE_ROTATE_DEVICE` message only cycles a rotation that is already frozen and merely
-   * thaws it when auto-rotate is enabled, which leaves the picture unchanged on a normal phone.
-   * Disabling auto-rotate and stepping `user_rotation` rotates the display itself, so the result
-   * also shows in the mirrored video.
-   */
-  fun rotateDevice() {
-    viewModelScope.launch {
-      try {
-        rotateTargetDisplay()
-      } catch (error: CancellationException) {
-        throw error
-      } catch (error: Exception) {
-        form.update { copy(console = string(R.string.log_rotate_failed,
-          error.message ?: string(R.string.unknown_error))) }
-      }
-    }
-  }
-
-  private suspend fun rotateTargetDisplay() = withContext(Dispatchers.IO) {
-    val current = shellOutput("settings get system user_rotation").trim().toIntOrNull() ?: 0
-    shellOutput("settings put system accelerometer_rotation 0")
-    shellOutput("settings put system user_rotation ${(current + 1) % 4}")
-  }
-
-  /** Runs a shell command and fails loudly, so a rejected command is not silently ignored. */
-  private suspend fun shellOutput(command: String): String {
-    val result = client.shell(command)
-    if (result.exitCode?.let { it != 0 } == true) {
-      error(result.text().trim().ifBlank { "$command failed" })
-    }
-    return result.text()
   }
 
   fun setTurnScreenOff(value: Boolean) {
@@ -1005,6 +1002,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     const val TURN_SCREEN_OFF_KEY = "turn_screen_off_v1"
     /** Bounds the package listing so a hung shell cannot keep the picker spinning forever. */
     const val APP_LIST_TIMEOUT_MILLIS = 20_000L
+    /** Labels run one `aapt` process per package, so they get a longer, best-effort budget. */
+    const val APP_LABEL_TIMEOUT_MILLIS = 60_000L
   }
 }
 
