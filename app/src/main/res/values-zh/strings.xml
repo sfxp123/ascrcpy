@@ -66,7 +66,7 @@
     <string name="volume_up">音量加</string>
     <string name="back">返回</string>
     <string name="home">主屏幕</string>
-    <string name="menu">菜单</string>
+    <string name="recent_apps">最近任务</string>
     <string name="scrcpy_ready">就绪</string>
     <string name="scrcpy_installing">正在安装服务端…</string>
     <string name="scrcpy_starting">正在启动服务端…</string>

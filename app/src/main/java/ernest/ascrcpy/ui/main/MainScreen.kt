@@ -120,16 +120,6 @@ fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE))
     }
   }
-  // The rotate key switches this app's own orientation, so landscape content fills the whole
-  // screen. The manifest handles the configuration change, so the mirror session survives it.
-  val activity = remember(context) { context.findActivity() }
-  var landscape by rememberSaveable { mutableStateOf(false) }
-  LaunchedEffect(landscape, activity) {
-    activity?.requestedOrientation =
-      if (landscape) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-      else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-  }
-  val toggleOrientation = { landscape = !landscape }
   MainScreen(state, viewModel::setHost, viewModel::setPort, viewModel::connect,
     viewModel::disconnect, {}, viewModel::startMirroring,
     viewModel::stopMirroring, viewModel::attachSurface, viewModel::detachSurface, viewModel::injectTouch,
@@ -142,7 +132,7 @@ fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     viewModel::setVideoMaxSize, viewModel::setVideoBitRate, viewModel::setVirtualDisplayEnabled,
     viewModel::setVirtualDisplayWidth, viewModel::setVirtualDisplayHeight,
     viewModel::setVirtualDisplayDpi, viewModel::setVirtualDisplayApp, viewModel::loadInstalledApps,
-    viewModel::setTurnScreenOff, toggleOrientation)
+    viewModel::setTurnScreenOff)
 }
 
 @Composable
@@ -185,10 +175,25 @@ internal fun MainScreen(
   onVirtualDisplayAppChange: (String) -> Unit = {},
   onLoadInstalledApps: () -> Unit = {},
   onTurnScreenOffChange: (Boolean) -> Unit = {},
-  onToggleOrientation: () -> Unit = {},
 ) {
   var fullscreen by remember(state.connected) { mutableStateOf(state.connected) }
   var managingDevice by rememberSaveable { mutableStateOf(false) }
+  // The rotate key switches this app's own orientation, so landscape content fills the whole
+  // screen. The manifest handles the configuration change, so the mirror session survives it.
+  val activity = remember { LocalContext.current.findActivity() }
+  var landscape by rememberSaveable { mutableStateOf(false) }
+  LaunchedEffect(landscape, activity) {
+    activity?.requestedOrientation =
+      if (landscape) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+      else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+  }
+  // Leaving the mirror, disconnecting, or closing the screen restores the normal orientation.
+  LaunchedEffect(state.connected) { if (!state.connected) landscape = false }
+  DisposableEffect(activity) {
+    onDispose { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+  }
+  val toggleOrientation = { landscape = !landscape }
+  val exitFullscreen = { fullscreen = false; landscape = false }
   val remoteState = rememberSaveable(saver = FloatingRemoteStateSaver) { FloatingRemoteState() }
   BackHandler(managingDevice) { managingDevice = false }
   ImmersiveMode(state.connected && fullscreen && !managingDevice)
@@ -204,7 +209,7 @@ internal fun MainScreen(
   if (state.connected && fullscreen) {
     Box(modifier.fillMaxSize().background(Color.Black)) {
       AspectRatioRemoteSurface(videoSize, onSurfaceCreated, onSurfaceDestroyed, onTouch, Modifier.fillMaxSize())
-      FloatingRemote(onKey, { fullscreen = false }, onToggleOrientation, remoteState, Modifier.fillMaxSize())
+      FloatingRemote(onKey, exitFullscreen, toggleOrientation, remoteState, Modifier.fillMaxSize())
     }
   } else {
     NormalScreen(state, videoSize, onHostChange, onPortChange, onConnect, onDisconnect,
@@ -217,7 +222,7 @@ internal fun MainScreen(
       onLoadInstalledApps, onTurnScreenOffChange,
       onOpenDevice = { fullscreen = false; managingDevice = true },
       previewControls = {
-        FloatingRemote(onKey, { fullscreen = true }, onToggleOrientation, remoteState, Modifier.fillMaxSize())
+        FloatingRemote(onKey, { fullscreen = true }, toggleOrientation, remoteState, Modifier.fillMaxSize())
       })
   }
   val payload = state.qrPayload
@@ -812,8 +817,8 @@ private fun FloatingRemote(
     val bounds = if (state.collapsed) icon else panel
     val edgeThreshold = with(density) { RemoteLayout.EdgeThreshold.toPx() }
 
-    // The remote is remembered by the point at its centre, so growing or shrinking the panel never
-    // teleports it to a screen edge; an untouched remote still docks to the right-hand side.
+    // Every placement keeps the top-left corner where the user put it, so growing the icon into the
+    // panel and shrinking it back never moves it; an untouched remote still docks to the right side.
     val restingCenter = if (state.center.x.isNaN()) Offset(icon.maxX + icon.itemWidth / 2f, areaHeight / 2f)
       else state.center
     var dragged by remember { mutableStateOf<Offset?>(null) }
@@ -854,7 +859,7 @@ private fun FloatingRemote(
       val remoteDescription = stringResource(R.string.floating_remote_control)
       Box(dragModifier.background(WeChatOverlayStrong, CircleShape)
         .semantics { contentDescription = remoteDescription }
-        .combinedClickable(onClick = { state.apply(expandRemote(actual, icon, panel)) },
+        .combinedClickable(onClick = { state.apply(expandRemote(actual, panel)) },
           onLongClick = onToggleFullscreen), contentAlignment = Alignment.Center) {
         RemoteGlyph(RemoteIcon.RemoteControl, Color.White.copy(.92f), Modifier.size(23.dp))
       }
@@ -980,9 +985,9 @@ internal data class RemoteBounds(val width: Float, val height: Float, val itemWi
 /** Resting placement of the floating remote: whether it is docked and where its centre sits. */
 internal data class RemotePlacement(val collapsed: Boolean, val center: Offset)
 
-/** Grows the docked icon into the full panel around the point the icon occupied. */
-internal fun expandRemote(dropped: Offset, icon: RemoteBounds, panel: RemoteBounds): RemotePlacement {
-  val topLeft = panel.topLeft(icon.centerOf(dropped))
+/** Grows the docked icon into the panel without moving its top-left corner. */
+internal fun expandRemote(dropped: Offset, panel: RemoteBounds): RemotePlacement {
+  val topLeft = panel.clamp(dropped.x, dropped.y)
   return RemotePlacement(collapsed = false, center = panel.centerOf(topLeft))
 }
 
@@ -1021,7 +1026,7 @@ internal fun settleRemote(
   val nearRight = dropped.x >= bounds.maxX - edgeThreshold
   val pushedToEdge = abs(dropped.x - dragStartX) >= edgeThreshold
   return when {
-    collapsed && !nearLeft && !nearRight -> expandRemote(dropped, icon, panel)
+    collapsed && !nearLeft && !nearRight -> expandRemote(dropped, panel)
     !collapsed && pushedToEdge && (nearLeft || nearRight) -> dockRemote(dropped, icon, nearLeft, nearRight)
     else -> keepRemote(dropped, bounds, collapsed)
   }
@@ -1089,12 +1094,12 @@ private fun MiniRemote(onKey: (Int) -> Unit, onToggleFullscreen: () -> Unit, onR
     Row(horizontalArrangement = Arrangement.spacedBy(metrics.navSpacing)) {
       RemoteKey(RemoteIcon.Back, R.string.back, KeyEvent.KEYCODE_BACK, onKey, metrics)
       RemoteKey(RemoteIcon.Home, R.string.home, KeyEvent.KEYCODE_HOME, onKey, metrics)
-      RemoteKey(RemoteIcon.Menu, R.string.menu, KeyEvent.KEYCODE_MENU, onKey, metrics)
+      RemoteKey(RemoteIcon.Recents, R.string.recent_apps, KeyEvent.KEYCODE_APP_SWITCH, onKey, metrics)
     }
   }
 }
 
-private enum class RemoteIcon { Up, Down, Left, Right, Confirm, Back, Home, Menu, Power, VolumeDown, VolumeUp, RemoteControl, Fullscreen, Minimize, Rotate }
+private enum class RemoteIcon { Up, Down, Left, Right, Confirm, Back, Home, Recents, Power, VolumeDown, VolumeUp, RemoteControl, Fullscreen, Minimize, Rotate }
 
 /** A remote key wired to a single Android key code, sized from [metrics]. */
 @Composable
@@ -1155,10 +1160,11 @@ private fun RemoteGlyph(icon: RemoteIcon, tint: Color, modifier: Modifier = Modi
           val p = Path().apply { moveTo(size.width * .15f, size.height * .5f); lineTo(size.width * .5f, size.height * .2f); lineTo(size.width * .85f, size.height * .5f); lineTo(size.width * .76f, size.height * .5f); lineTo(size.width * .76f, size.height * .82f); lineTo(size.width * .24f, size.height * .82f); lineTo(size.width * .24f, size.height * .5f); close() }
           drawPath(p, white, style = Stroke(stroke, cap = StrokeCap.Round))
         }
-        RemoteIcon.Menu -> repeat(3) { i ->
-          val y = size.height * (.28f + i * .22f)
-          drawLine(white, Offset(size.width * .2f, y), Offset(size.width * .8f, y), stroke, StrokeCap.Round)
-        }
+        RemoteIcon.Recents -> drawRoundRect(white,
+          topLeft = Offset(size.width * .22f, size.height * .22f),
+          size = androidx.compose.ui.geometry.Size(size.width * .56f, size.height * .56f),
+          cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width * .12f),
+          style = Stroke(stroke, cap = StrokeCap.Round))
         RemoteIcon.Power -> {
           drawArc(white, -52f, 284f, false, topLeft = Offset(size.width * .17f, size.height * .2f),
             size = androidx.compose.ui.geometry.Size(size.width * .66f, size.height * .66f), style = Stroke(stroke, cap = StrokeCap.Round))

@@ -66,7 +66,7 @@
     <string name="volume_up">Volume up</string>
     <string name="back">Back</string>
     <string name="home">Home</string>
-    <string name="menu">Menu</string>
+    <string name="recent_apps">Recent apps</string>
     <string name="scrcpy_ready">Ready</string>
     <string name="scrcpy_installing">Installing server…</string>
     <string name="scrcpy_starting">Starting server…</string>

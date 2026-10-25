@@ -50,23 +50,24 @@ class FloatingRemotePlacementTest {
   }
 
   @Test
-  fun droppingTheIconAwayFromAnEdgeExpandsItAroundTheSamePoint() {
+  fun expandingTheIconKeepsItsTopLeftCorner() {
     val dropped = Offset(300f, 900f)
     val placement = settleRemote(dropped, dropped.x, icon, icon, panel, edgeThreshold, collapsed = true)
 
     assertEquals(false, placement.collapsed)
-    assertEquals(Offset(300f + iconSize / 2f, 900f + iconSize / 2f), placement.center)
-    // Growing the panel must not move it to an edge.
-    assertEquals(300f - (panelWidth - iconSize) / 2f, panel.topLeft(placement.center).x)
+    assertEquals(dropped, panel.topLeft(placement.center))
+    // Shrinking back must return the icon to the same corner, so repeated toggles never drift.
+    val collapsedAgain = keepRemote(panel.topLeft(placement.center), icon, collapsed = true)
+    assertEquals(dropped, icon.topLeft(collapsedAgain.center))
   }
 
   @Test
   fun expandingADockedIconKeepsItFullyVisible() {
-    val placement = expandRemote(Offset(icon.maxX, 500f), icon, panel)
+    val placement = expandRemote(Offset(icon.maxX, 500f), panel)
     val topLeft = panel.topLeft(placement.center)
 
     assertEquals(panel.maxX, topLeft.x)
-    assertEquals(500f - (panelHeight - iconSize) / 2f, topLeft.y)
+    assertEquals(500f, topLeft.y)
   }
 
   @Test

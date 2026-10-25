@@ -251,21 +251,21 @@ class MainScreenTest {
 
     // A panel that overflowed the area would be glued to the top edge with no vertical drag range.
     val up = composeTestRule.onNodeWithContentDescription(text(R.string.direction_up)).fetchSemanticsNode().boundsInRoot
-    val menu = composeTestRule.onNodeWithContentDescription(text(R.string.menu)).fetchSemanticsNode().boundsInRoot
+    val menu = composeTestRule.onNodeWithContentDescription(text(R.string.recent_apps)).fetchSemanticsNode().boundsInRoot
     assertTrue("panel overflowed the area: up=$up menu=$menu area=$area",
       up.top >= area.top && up.bottom <= area.bottom && menu.bottom <= area.bottom)
 
     root.performTouchInput {
       swipe(start = menu.center, end = Offset(menu.center.x, menu.center.y + 150f), durationMillis = 400)
     }
-    val after = composeTestRule.onNodeWithContentDescription(text(R.string.menu)).fetchSemanticsNode().boundsInRoot
+    val after = composeTestRule.onNodeWithContentDescription(text(R.string.recent_apps)).fetchSemanticsNode().boundsInRoot
     assertTrue("panel did not move vertically: $menu -> $after", after.top > menu.top)
   }
 
   private companion object {
     const val AREA = "short-area"
     val remoteKeys = listOf(
-      R.string.power, R.string.volume_down, R.string.volume_up, R.string.back, R.string.home, R.string.menu,
+      R.string.power, R.string.volume_down, R.string.volume_up, R.string.back, R.string.home, R.string.recent_apps,
       R.string.direction_up, R.string.direction_down, R.string.direction_left, R.string.direction_right,
       R.string.confirm,
     )
