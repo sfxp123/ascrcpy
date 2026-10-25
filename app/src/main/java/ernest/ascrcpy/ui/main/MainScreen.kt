@@ -180,7 +180,8 @@ internal fun MainScreen(
   var managingDevice by rememberSaveable { mutableStateOf(false) }
   // The rotate key switches this app's own orientation, so landscape content fills the whole
   // screen. The manifest handles the configuration change, so the mirror session survives it.
-  val activity = remember { LocalContext.current.findActivity() }
+  val orientationContext = LocalContext.current
+  val activity = remember(orientationContext) { orientationContext.findActivity() }
   var landscape by rememberSaveable { mutableStateOf(false) }
   LaunchedEffect(landscape, activity) {
     activity?.requestedOrientation =
